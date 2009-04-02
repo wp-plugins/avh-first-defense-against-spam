@@ -60,9 +60,10 @@ class AVH_FDAS_Core {
 	 * PHP5 constructor
 	 *
 	 */
-	function __construct () {
+	function __construct ()
+	{
 
-		$this->version = "1.0";
+		$this->version = "1.1";
 		$this->comment_begin = '<!-- AVH First Defense Against Spam version ' . $this->version . ' Begin -->';
 		$this->comment_end = '<!-- AVH First Defense Against Spam version ' . $this->version . ' End -->';
 
@@ -80,10 +81,13 @@ class AVH_FDAS_Core {
 				'diewithmessage' => 1,
 				'useblacklist' => 1,
 				'blacklist' => '',
+				'usewhitelist' => 1,
+				'whitelist' => '',
+				'sfsapikey' => '',
 			);
 		$this->default_spam_data = array(
 				'counter' => 0,
-		);
+			);
 
 		/**
 		 * Default Options - All as stored in the DB
@@ -95,12 +99,12 @@ class AVH_FDAS_Core {
 
 		$this->default_data = array (
 				'spam' => $this->default_spam_data,
-		);
+			);
 		/**
 		 * Set the options for the program
 		 *
 		 */
-		$this->handleOptions ();
+		$this->handleOptions();
 		$this->handleData();
 
 		// Determine installation path & url
@@ -110,21 +114,20 @@ class AVH_FDAS_Core {
 
 		$info['siteurl'] = get_option( 'siteurl' );
 		if ( $this->isMuPlugin() ) {
-			$info['install_url'] = $info['siteurl'] . '/wp-content/mu-plugins';
-			$info['install_dir'] = ABSPATH . 'wp-content/mu-plugins';
+			$info['install_url'] = WPMU_PLUGIN_URL;
+			$info['install_dir'] = WPMU_PLUGIN_DIR;
 
 			if ( $path != 'mu-plugins' ) {
 				$info['install_url'] .= '/' . $path;
 				$info['install_dir'] .= '/' . $path;
 			}
 		} else {
-			$info['install_url'] = $info['siteurl'] . '/wp-content/plugins';
-			$info['install_dir'] = ABSPATH . 'wp-content/plugins';
+			$info['install_url'] = WP_PLUGIN_URL;
+			$info['install_dir'] = WP_PLUGIN_DIR;
 
 			if ( $path != 'plugins' ) {
 				$info['install_url'] .= '/' . $path;
 				$info['install_dir'] .= '/' . $path;
-				$info['install_uri'] = '/wp-content/plugins/' . $path;
 			}
 		}
 
@@ -133,7 +136,6 @@ class AVH_FDAS_Core {
 				'home' => get_option ( 'home' ),
 				'siteurl' => $info['siteurl'],
 				'install_url' => $info['install_url'],
-				'install_uri' => $info['install_uri'],
 				'install_dir' => $info['install_dir'],
 				'graphics_url' => $info['install_url'] . '/images',
 				'home_path' => $info['home_path'],
@@ -151,10 +153,7 @@ class AVH_FDAS_Core {
 		//	$mofile = $this->info['install_dir'].'/languages/avhamazon-'.$locale.'.mo';
 		//	load_textdomain('avhfdas', $mofile);
 		//}
-
-
 		return;
-
 	}
 
 	/**
@@ -162,9 +161,9 @@ class AVH_FDAS_Core {
 	 *
 	 * @return
 	 */
-	function AVH_FDAS_Core () {
-
-		$this->__construct ();
+	function AVH_FDAS_Core ()
+	{
+		$this->__construct();
 	}
 
 	/**
@@ -172,9 +171,9 @@ class AVH_FDAS_Core {
 	 *
 	 * @return boolean
 	 */
-	function isMuPlugin () {
-
-		if ( strpos ( dirname ( __FILE__ ), 'mu-plugins' ) ) {
+	function isMuPlugin ()
+	{
+		if ( strpos( dirname( __FILE__ ), 'mu-plugins' ) ) {
 			return true;
 		}
 		return false;
@@ -188,7 +187,6 @@ class AVH_FDAS_Core {
 	 */
 	function handleData ()
 	{
-
 		$default_data = $this->default_data;
 
 		// Get options from WP options
@@ -223,7 +221,6 @@ class AVH_FDAS_Core {
 	 */
 	function getData ( $key, $option )
 	{
-
 		if ( $this->data[$option][$key] ) {
 			$return = $this->data[$option][$key]; // From Admin Page
 		} else {
@@ -241,7 +238,6 @@ class AVH_FDAS_Core {
 	 */
 	function handleOptions ()
 	{
-
 		$default_options = $this->default_options;
 
 		// Get options from WP options
@@ -283,7 +279,6 @@ class AVH_FDAS_Core {
 	 */
 	function getOption ( $key, $option )
 	{
-
 		if ( $this->options[$option][$key] ) {
 			$return = $this->options[$option][$key]; // From Admin Page
 		} else {
@@ -303,7 +298,6 @@ class AVH_FDAS_Core {
 	 */
 	function getBaseDirectory ( $directory )
 	{
-
 		//get public directory structure eg "/top/second/third"
 		$public_directory = dirname( $directory );
 		//place each directory into array
@@ -324,8 +318,8 @@ class AVH_FDAS_Core {
 	 */
 	function getWordpressVersion ()
 	{
-
-		global $wp_version;
+		// Include WordPress version
+		require (ABSPATH . WPINC . '/version.php');
 		$version = ( float ) $wp_version;
 		return $version;
 	}
@@ -340,13 +334,54 @@ class AVH_FDAS_Core {
 	 */
 	function handleCssFile ( $handle, $cssfile )
 	{
-
-		wp_register_style( $handle, $this->info['install_uri'] . $cssfile, array (), $this->version, 'all' );
+		wp_register_style( $handle, $this->info['install_url'] . $cssfile, array (), $this->version, 'all' );
 		if ( did_action( 'wp_print_styles' ) ) { // we already printed the style queue.  Print this one immediately
 			wp_print_styles( $handle );
 		} else {
 			wp_enqueue_style( $handle );
 		}
+	}
+
+	/**
+	 * Local nonce creation. WordPress uses the UID and sometimes I don't want that
+	 * Creates a random, one time use token.
+	 *
+	 * @param string|int $action Scalar value to add context to the nonce.
+	 * @return string The one use form token
+	 *
+	 * @since 1.1
+	 */
+	function avh_create_nonce ( $action = -1 )
+	{
+		$i = wp_nonce_tick();
+		return substr( wp_hash( $i . $action, 'nonce' ), - 12, 10 );
+	}
+
+	/**
+	 * Local nonce verification. WordPress uses the UID and sometimes I don't want that
+	 * Verify that correct nonce was used with time limit.
+	 *
+	 * The user is given an amount of time to use the token, so therefore, since the
+	 * $action remain the same, the independent variable is the time.
+	 *
+	 * @since 1.1
+	 *
+	 * @param string $nonce Nonce that was used in the form to verify
+	 * @param string|int $action Should give context to what is taking place and be the same when nonce was created.
+	 * @return bool Whether the nonce check passed or failed.
+	 */
+	function avh_verify_nonce ( $nonce, $action = -1 )
+	{
+		$r = false;
+		$i = wp_nonce_tick();
+
+		// Nonce generated 0-12 hours ago
+		if ( substr( wp_hash( $i . $action, 'nonce' ), - 12, 10 ) == $nonce ) {
+			$r = 1;
+		} elseif ( substr( wp_hash( ($i - 1) . $action, 'nonce' ), - 12, 10 ) == $nonce ) { // Nonce generated 12-24 hours ago
+			$r = 2;
+		}
+		return $r;
 	}
 
 	/**
@@ -588,7 +623,7 @@ class AVH_FDAS_Core {
 		$iplookup = array ('ip' => $ip );
 		return $iplookup;
 	}
-} //End Class avh_amazon
+} //End Class AVH_FDAS_Core
 
 
 /**
@@ -597,7 +632,6 @@ class AVH_FDAS_Core {
  */
 function avh_FDAS__init ()
 {
-
 	// Admin
 	if ( is_admin() ) {
 		require (dirname( __FILE__ ) . '/inc/avh-fdas.admin.php');
@@ -610,7 +644,7 @@ function avh_FDAS__init ()
 	require (dirname( __FILE__ ) . '/inc/avh-fdas.public.php');
 	$avhfdas_public = & new AVH_FDAS_Public( );
 
-} // End avhamazon_init()
+} // End avh_FDAS__init()
 
 
 add_action ( 'plugins_loaded', 'avh_FDAS__init' );

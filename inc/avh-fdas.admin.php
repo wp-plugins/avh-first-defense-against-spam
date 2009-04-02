@@ -1,4 +1,5 @@
 <?php
+require_once( ABSPATH . 'wp-includes/class-snoopy.php' );
 class AVH_FDAS_Admin extends AVH_FDAS_Core
 {
 
@@ -27,16 +28,23 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 		add_action( 'admin_menu', array (&$this, 'adminMenu' ) );
 
 		// CSS Helper
-		add_action( 'admin_head', array (&$this, 'helperCSS' ) );
+		add_action( 'admin_print_styles-settings_page_avhfdas_options', array (&$this, 'injectCSS' ) );
 
 		// Helper JS & jQuery & Prototype
 		$avhfdas_pages = array ('avhfdas_options' );
-		/**
-		 * TODO  With WordPress 2.5 the Tabs UI is build in :)
-		 */
 		if ( in_array( $_GET['page'], $avhfdas_pages ) ) {
 			wp_enqueue_script( 'jquery-ui-tabs' );
 		}
+
+		// Add the ajax action
+		//add_action('admin_init', array(&$this, 'ajaxCheck'));
+		add_action ( 'wp_ajax_avh-fdas-reportcomment', array ( &$this, 'ajaxCheck' ) );
+
+		// Add admin actions
+		add_action('admin_action_blacklist',array(&$this,'handleBlacklistUrl'));
+
+		// Add Filter
+		add_filter('comment_row_actions',array(&$this,'filterCommentRowActions'),10,2);
 		return;
 	}
 
@@ -76,30 +84,125 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	function adminMenu ()
 	{
 		add_options_page( __( 'AVH First Defense Against Spam: Options', 'avhfdas' ), 'AVH First Defense Against Spam', 'avh_fdas', 'avhfdas_options', array (&$this, 'pageOptions' ) );
-		add_filter( 'plugin_action_links', array (&$this, 'filterPluginActions' ), 10, 2 );
+		add_filter( 'plugin_action_links_avh-first-defense-against-spam/avh-fdas.php', array (&$this, 'filterPluginActions' ) );
 	}
 
 	/**
 	 * Adds Settings next to the plugin actions
 	 *
+	 * @param array $links
+	 * @return array
+	 *
+	 * @since 1.0
 	 */
-	function filterPluginActions ( $links, $file )
+	function filterPluginActions ( $links )
 	{
-		static $this_plugin;
-
-		if ( ! $this_plugin )
-			$this_plugin = plugin_basename( $this->info['install_dir'] );
-		if ( $file )
-			$file = $this->getBaseDirectory( $file );
-		if ( $file == $this_plugin ) {
-			$settings_link = '<a href="options-general.php?page=avhfdas_options">' . __( 'Settings', 'avhfdas' ) . '</a>';
-			array_unshift( $links, $settings_link ); // before other links
-		//$links = array_merge ( array (	$settings_link ), $links ); // before other links
-		}
+		$settings_link = '<a href="options-general.php?page=avhfdas_options">' . __( 'Settings', 'avhfdas' ) . '</a>';
+		array_unshift( $links, $settings_link ); // before other links
 		return $links;
 
 	}
 
+	/**
+	 * Adds an extra option on the comment row
+	 *
+	 * @param array $actions
+	 * @param class $comment
+	 * @return array
+	 * @since 1.0
+	 */
+	function filterCommentRowActions($actions,$comment){
+		if ( (! empty( $this->options['spam']['sfsapikey'] )) && isset( $comment->comment_approved ) && 'spam' == $comment->comment_approved ) {
+			$report_url = clean_url( wp_nonce_url("admin.php?avhfdas_ajax_action=avh-fdas-reportcomment&id=$comment->comment_ID", "report-comment_$comment->comment_ID" ) );
+			$actions['report'] = '<a class=\'delete:the-comment-list:comment-'.$comment->comment_ID.':e7e7d3:action=avh-fdas-reportcomment vim-d vim-destructive\' href="'.$report_url.'">Report & Delete</a>';
+		}
+		return $actions;
+	}
+
+	/**
+	 * Checks if the user clicked on the Report & Delete link.
+	 *
+	 */
+	function ajaxCheck ()
+	{
+		if ( 'avh-fdas-reportcomment' == $_POST['action'] ) {
+			$comment_id = absint( $_REQUEST['id'] );
+			check_ajax_referer( 'report-comment_' . $comment_id );
+
+			if ( ! $comment = get_comment( $comment_id ) ) {
+				comment_footer_die( __( 'Oops, no comment with this ID.' ) . sprintf( ' <a href="%s">' . __( 'Go back' ) . '</a>!', 'edit-comments.php' ) );
+			}
+			if ( ! current_user_can( 'edit_post', $comment->comment_post_ID ) ) {
+				comment_footer_die( __( 'You are not allowed to edit comments on this post.' ) );
+			}
+
+			$snoopy_formvar['username']= $comment->comment_author;
+			$snoopy_formvar['email']= empty($comment->comment_author_email) ? 'no@email.address' : $comment->comment_author_email;
+			$snoopy_formvar['ip_addr']= $comment->comment_author_IP;
+			$snoopy_formvar['api_key']= $this->options['spam']['sfsapikey'];
+			$snoopy = new Snoopy( );
+			$snoopy->agent = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)";
+			$snoopy->submit('http://www.stopforumspam.com/add', $snoopy_formvar);
+			// @TODO See if we can revert the
+			//$result=$snoopy->results;
+			//<div class="msg info">Data submitted successfully</div>
+
+			// Delete the comment
+			$r = wp_delete_comment( $comment->comment_ID );
+			die( $r ? '1' : '0' );
+		}
+	}
+
+	/**
+	 * Handles the admin_action_blacklist call
+	 *
+	 */
+	function handleBlacklistUrl ()
+	{
+		if ( ! (isset( $_REQUEST['action'] ) && 'blacklist' == $_REQUEST['action']) ) {
+			return;
+		}
+
+		$ip = $_REQUEST['i'];
+		if ( $this->avh_verify_nonce( $_REQUEST['_avhnonce'], $ip ) ) {
+
+			if ( ! empty( $this->options['spam']['blacklist'] ) ) {
+				$b = explode( "\r\n", $this->options['spam']['blacklist'] );
+			} else {
+				$b = array ();
+			}
+			if ( ! (in_array( $ip, $b )) ) {
+				array_push( $b, $ip );
+				$this->setBlacklistOption( $b );
+			}
+		}
+		wp_redirect( admin_url( 'options-general.php?page=avhfdas_options' ) );
+	}
+
+	/**
+	 * Update the blacklist in the proper format
+	 *
+	 * @param array $b
+	 */
+	function setBlacklistOption($b)
+	{
+		natsort($b);
+		$x=implode("\r\n",$b);
+		$this->options['spam']['blacklist']=$x;
+		$this->saveOptions();
+	}
+	/**
+	 * Update the whitelist in the proper format
+	 *
+	 * @param array $b
+	 */
+	function setWhitelistOption($b)
+	{
+		natsort($b);
+		$x=implode("\r\n",$b);
+		$this->options['spam']['whitelist']=$x;
+		$this->saveOptions();
+	}
 	/**
 	 * WP Page Options- AVH Amazon options
 	 *
@@ -127,7 +230,14 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 					'Show message:',
 					'checkbox',
 					1,
-					'Show a message when the connection has been terminated'
+					'Show a message when the connection has been terminated.'
+				),
+				array (
+					'avhfdas[spam][sfsapikey]',
+					'API Key:',
+					'text',
+					15,
+					'You need a Stop Forum Spam API key to report spam.'
 				),
 				array (
 					'avhfdas[spam][useblacklist]',
@@ -139,6 +249,20 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 				array (
 					'avhfdas[spam][blacklist]',
 					'Blacklist IP\'s:',
+					'textarea',
+					15,
+					'Each IP should be on a seperate line',
+					15),
+				array (
+					'avhfdas[spam][usewhitelist]',
+					'Use internal whitelist:',
+					'checkbox',
+					1,
+					'Check the internal whitelist first. If the IP is found don\t do any further checking.'
+				),
+				array (
+					'avhfdas[spam][whitelist]',
+					'Whitelist IP\'s:',
 					'textarea',
 					15,
 					'Each IP should be on a seperate line',
@@ -167,8 +291,18 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 					'<h3>Does it conflicts with other spam solutions?</h3>'.
 					'<p>I\'m currently not aware of any conflicts with other spam solutions.</p>'.
 					'<h3>Can I report a spammer at Stop Forum Spam?</h3>'.
-					'<p>You can by visiting their site at <a href="http://www.stopforumspam.com/add" target="_blank">http://www.stopforumspam.com/add</a><br/>'.
-					'I\'m looking to see if I can integrate the reporting of spammers in WordPress.</p>'
+					'<p>You need an API key which you can get by visiting <a href="http://www.stopforumspam.com/add" target="_blank">http://www.stopforumspam.com/add</a><br/>'.
+					'When you enter your API key in this plugin you\'ll be able to report comments marked as spam to Stop Forum Spam.<br />'.
+					'There will be an extra option called Report for comments marked as spam.</p>'.
+					'<h3>What do the emails mean that I receive?</h3>'.
+					'<p><em>AVH First Defense Against Spam - Error detected</em><br/>'.
+					'This means the call to Stop Forum Spam failed. The error explains the problem. I actually check the connection again if the first one fails and only then report the error.<br />'.
+					'The plugin was unable to check if the visiting IP is in the database and therefor does not block it.</p>'.
+					'<p><em>AVH First Defense Against Spam - Spammer detected</em><br />'.
+					'The call to the database was successful and the IP was found in the database.<br />'.
+					'You can actually receive two sort of emails with this subject line.<br />'.
+					'One will have the line: <em>Threshold (3) reached. Connection terminated.</em> This means because the Threshold, set in the admin section, was reached the connection was terminated. In other words the spammer is stopped before any content was served.<br />'.
+					'The other message is without the Threshold message. This means the IP is in the database but the connection is not terminate because the threshold was not reached. In this case the normal content is served to the visitor.</p>'
 				)
 			),
 			'tips' => array (
@@ -209,29 +343,26 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 		// Update or reset options
 		if ( isset( $_POST['updateoptions'] ) ) {
 			check_admin_referer( 'avhfdas-options' );
-			// Set all checkboxes unset
-			if ( isset( $_POST['avh_checkboxes'] ) ) {
-				$checkboxes = explode( '|', $_POST['avh_checkboxes'] );
-				foreach ( $checkboxes as $value ) {
-					$value = preg_replace( '#^[[:alpha:]]+[[:alnum:]]*\[#', '', $value );
-					$value = rtrim( $value, ']' );
-					$keys = explode( '][', $value );
-					$this->setOption( $keys, 0 );
-				}
-			}
+
 			$formoptions = $_POST['avhfdas'];
 			foreach ( $this->options as $key => $value ) {
 				if ( 'general' != $key ) { // The data in General is used for internal usage.
 					foreach ( $value as $key2 => $value2 ) {
-						if (isset( $formoptions[$key][$key2] )) {
-							$newval =  attribute_escape( $formoptions[$key][$key2] );
-						}
+						// Every field in a form is filled except unchecked checkboxes. Set an unchecked checkbox to 0.
+						$newval = (isset( $formoptions[$key][$key2] ) ? attribute_escape( $formoptions[$key][$key2] ) : 0);
+
 						// Check numeric entries
 						if ( 'whentoemail' == $key2 || 'whentodie' == $key2 ) {
 							if ( ! is_numeric( $formoptions[$key][$key2] ) ) {
 								$newval = $this->default_options[$key][$key2];
 							}
 							$newval = ( int ) $newval;
+						}
+						if ( 'blacklist' == $key2 || 'whitelist' == $key2) {
+							$b = explode( "\r\n", $newval );
+							natsort( $b );
+							$newval = implode( "\r\n", $b );
+							unset( $b );
 						}
 						if ( $newval != $value2 ) {
 							$this->setOption( array ($key, $key2 ), $newval );
@@ -347,7 +478,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	 */
 	function printAdminFooter ()
 	{
-		echo '<p class="footer_avhamazon">';
+		echo '<p class="footer_avhfdas">';
 		printf( __( '&copy; Copyright 2009 <a href="http://blog.avirtualhome.com/" title="My Thoughts">Peter van der Does</a> | AVH First Defense Against Spam Version %s', 'avhfdas' ), $this->version );
 		echo '</p>';
 	}
@@ -375,9 +506,9 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	 * Print link to CSS
 	 *
 	 */
-	function helperCSS ()
+	function injectCSS ()
 	{
-		$this->handleCssFile( 'avhfdasadmin', '/inc/avh-fdas.admin.css' );
+		wp_enqueue_style( 'avhfdasadmin', $this->info['install_url'] . '/inc/avh-fdas.admin.css', array (), $this->version, 'screen' );
 	}
 
 	/**
