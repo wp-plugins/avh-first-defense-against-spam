@@ -21,6 +21,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 			$this->actual_page = ( int ) $_GET['pagination'];
 		}
 
+		$this->installPlugin();
 		// Admin Capabilities
 		add_action( 'init', array (&$this, 'initRoles' ) );
 
@@ -42,6 +43,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 
 		// Add admin actions
 		add_action('admin_action_blacklist',array(&$this,'handleBlacklistUrl'));
+		add_action('admin_action_emailreportspammer',array(&$this,'handleEmailReportingUrl'));
 
 		// Add Filter
 		add_filter('comment_row_actions',array(&$this,'filterCommentRowActions'),10,2);
@@ -136,21 +138,63 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 				comment_footer_die( __( 'You are not allowed to edit comments on this post.' ) );
 			}
 
-			$snoopy_formvar['username']= $comment->comment_author;
-			$snoopy_formvar['email']= empty($comment->comment_author_email) ? 'no@email.address' : $comment->comment_author_email;
-			$snoopy_formvar['ip_addr']= $comment->comment_author_IP;
-			$snoopy_formvar['api_key']= $this->options['spam']['sfsapikey'];
-			$snoopy = new Snoopy( );
-			$snoopy->agent = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)";
-			$snoopy->submit('http://www.stopforumspam.com/add', $snoopy_formvar);
-			// @TODO See if we can revert the
-			//$result=$snoopy->results;
-			//<div class="msg info">Data submitted successfully</div>
+			$this->handleReportSpammer($comment->comment_author,$comment->comment_author_email,$comment->comment_author_IP);
 
 			// Delete the comment
 			$r = wp_delete_comment( $comment->comment_ID );
 			die( $r ? '1' : '0' );
 		}
+	}
+
+	/**
+	 * Handles the admin_action emailreportspammer call.
+	 *
+	 * @since 1.2
+	 *
+	 */
+	function handleEmailReportingUrl ()
+	{
+		if ( ! (isset( $_REQUEST['action'] ) && 'emailreportspammer' == $_REQUEST['action']) ) {
+			return;
+		}
+
+		$a = wp_specialchars( $_REQUEST['a'] );
+		$e = wp_specialchars( $_REQUEST['e'] );
+		$i = wp_specialchars( $_REQUEST['i'] );
+		$extra = '&m=10&i=' . $i;
+		if ( $this->avh_verify_nonce( $_REQUEST['_avhnonce'], $a . $e . $i ) ) {
+			$all = get_option( $this->db_options_nonces );
+			$extra = '&m=11&i=' . $i;
+			if ( isset( $all[$_REQUEST['_avhnonce']] ) ) {
+				$this->handleReportSpammer( $a, $e, $i );
+				unset( $all[$_REQUEST['_avhnonce']] );
+				update_option( $this->db_nonce, $all );
+				$extra = '&m=12&i=' . $i;
+			}
+			unset( $all );
+		}
+		wp_redirect( admin_url( 'options-general.php?page=avhfdas_options' . $extra ) );
+	}
+
+	/**
+	 * Do the HTTP call to and report the spammer
+	 *
+	 * @param unknown_type $username
+	 * @param unknown_type $email
+	 * @param unknown_type $ip_addr
+	 */
+	function handleReportSpammer ( $username, $email, $ip_addr )
+	{
+		$snoopy_formvar['username'] = $username;
+		$snoopy_formvar['email'] = empty( $email ) ? 'no@email.address' : $email;
+		$snoopy_formvar['ip_addr'] = $ip_addr;
+		$snoopy_formvar['api_key'] = $this->options['spam']['sfsapikey'];
+		$snoopy = new Snoopy( );
+		$snoopy->agent = "Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.8) Gecko/2009032608 Firefox/3.0.8 GTB5";
+		$snoopy->submit( 'http://www.stopforumspam.com/add', $snoopy_formvar );
+		// @TODO See if we can revert the
+	//$result=$snoopy->results;
+	//<div class="msg info">Data submitted successfully</div>
 	}
 
 	/**
@@ -176,7 +220,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 				$this->setBlacklistOption( $b );
 			}
 		}
-		wp_redirect( admin_url( 'options-general.php?page=avhfdas_options' ) );
+		wp_redirect( admin_url( 'options-general.php?page=avhfdas_options&m=2&i=' . $ip ) );
 	}
 
 	/**
@@ -233,6 +277,13 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 					'Show a message when the connection has been terminated.'
 				),
 				array (
+					'avhfdas[spam][emailsecuritycheck]',
+					'Email on failed security check:',
+					'checkbox',
+					1,
+					'Receive an email when a comment is posted and the security check failed.'
+				),
+				array (
 					'avhfdas[spam][sfsapikey]',
 					'API Key:',
 					'text',
@@ -251,7 +302,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 					'Blacklist IP\'s:',
 					'textarea',
 					15,
-					'Each IP should be on a seperate line',
+					'Each IP should be on a separate line<br />Ranges can be defines as well in the following two formats<br />IP to IP. i.e. 192.168.1.100-192.168.1.105<br />Network in CIDR format. i.e. 192.168.1.0/24',
 					15),
 				array (
 					'avhfdas[spam][usewhitelist]',
@@ -265,7 +316,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 					'Whitelist IP\'s:',
 					'textarea',
 					15,
-					'Each IP should be on a seperate line',
+					'Each IP should be on a seperate line<br />Ranges can be defines as well in the following two formats<br />IP to IP. i.e. 192.168.1.100-192.168.1.105<br />Network in CIDR format. i.e. 192.168.1.0/24',
 					15)
 			),
 			'faq' => array (
@@ -302,7 +353,13 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 					'The call to the database was successful and the IP was found in the database.<br />'.
 					'You can actually receive two sort of emails with this subject line.<br />'.
 					'One will have the line: <em>Threshold (3) reached. Connection terminated.</em> This means because the Threshold, set in the admin section, was reached the connection was terminated. In other words the spammer is stopped before any content was served.<br />'.
-					'The other message is without the Threshold message. This means the IP is in the database but the connection is not terminate because the threshold was not reached. In this case the normal content is served to the visitor.</p>'
+					'The other message is without the Threshold message. This means the IP is in the database but the connection is not terminate because the threshold was not reached. In this case the normal content is served to the visitor.</p>'.
+					'<p><em>AVH First Defense Against Spam - Comment security check failed</em><br />'.
+					'Somebody tried to post a comment but it failed the security check.<br />'.
+					'Some spammers try to comment by directly accessing the WordPress core file responsible for posting the comment (wp-comments-post.php).<br />'.
+					'This file does not trigger the check of AVH First Defense Against Spam to the site Stop Forum Spam.<br />'.
+					'For this reason I added an extra security option that will check if the posting of the comment is coming from the blog itself.<br />'.
+					'If it fails and you have checked the option <em>Email on failed security check</em>, you will receive this email.</p>'
 				)
 			),
 			'tips' => array (
@@ -323,7 +380,8 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 					'RewriteRule (.*) http://%{REMOTE_ADDR}/ [R=301,L] <br />' .
 					'&#60;/IfModule></pre>' .
 					'<p>Replace example\.com with your domain, for me it would be avirtualhome\.com<br /><br />' .
-					'Spammers are known to call the file wp-comments-post.php directly. Normal users would never do this, the above part will block this behavior.</p>'
+					'Spammers are known to call the file wp-comments-post.php directly. Normal users would never do this, the above part will block this behavior.<br />'.
+					'As of version 1.2 of this plugin you no longer need this, the plugin has a security feature that takes care of these kind of spammers</p>'
 				)
 			),
 			'about' => array (
@@ -372,13 +430,40 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 			}
 			$this->saveOptions();
 			$this->message = 'Options saved';
-			$this->status = 'updated';
+			$this->status = 'updated fade';
 		} elseif ( isset( $_POST['reset_options'] ) ) {
 			check_admin_referer( 'avhfdas-options' );
 			$this->resetToDefaultOptions();
 			$this->message = __( 'AVH First Defense Against Spam options set to default options!', 'avhfdas' );
 		}
 
+		// Show messages if needed.
+		if ( isset( $_REQUEST['m'] ) ) {
+			switch ( $_REQUEST['m'] ) {
+				case '1' :
+					$this->status = 'updated fade';
+					$this->message = sprintf( __( 'IP [%s] Reported and deleted', 'avhfdas' ), attribute_escape( $_REQUEST['i'] ) );
+					break;
+				case '2' :
+					$this->status = 'updated fade';
+					$this->message = sprintf( __( 'IP [%s] has been added to the blacklist', 'avhfdas' ), attribute_escape( $_REQUEST['i'] ) );
+					break;
+				case '10' :
+					$this->status = 'error';
+					$this->message = sprintf( __( 'Invalid request.', 'avhfdas' ) );
+					break;
+				case '11' :
+					$this->status = 'error';
+					$this->message = sprintf( __( 'IP [%s] not reported. Probably already processed.', 'avhfdas' ), attribute_escape( $_REQUEST['i'] ) );
+					break;
+				case '12' :
+					$this->status = 'updated fade';
+					$this->message = sprintf( __( 'IP [%s] reported.', 'avhfdas' ), attribute_escape( $_REQUEST['i'] ) );
+					break;
+				default :
+					$this->message = '';
+			}
+		}
 		$this->displayMessage();
 
 		echo '<script type="text/javascript">';
@@ -411,20 +496,41 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	}
 
 	/**
-	 * Add initial avh-fdas options in DB
+	 * Called on activation of the plugin.
 	 *
 	 */
 	function installPlugin ()
 	{
-		if ( ! (get_option( $this->db_options_name_core )) ) {
+		// Add Cron Job, the action is added in the Public class.
+		if ( ! wp_next_scheduled( 'avhfdas_clean_nonce' ) ) {
+			wp_schedule_event( time(), 'daily', 'avhfdas_clean_nonce' );
+		}
+
+		// Set the options if they don't exist
+		if ( ! (get_option( $this->db_options_core )) ) {
 			$this->resetToDefaultOptions();
 		}
 
-		if ( ! (get_option( $this->db_data )) ) {
+		if ( ! (get_option( $this->db_options_data )) ) {
 			$this->data = $this->default_data;
-			update_option( $this->db_data, $this->data );
+			update_option( $this->db_options_data, $this->data );
 			wp_cache_flush(); // Delete cache
 		}
+
+		if ( ! (get_option( $this->db_options_nonces )) ) {
+			update_option( $this->db_options_nonces, $this->default_emailreport );
+			wp_cache_flush(); // Delete cache
+		}
+	}
+
+	/**
+	 * Called on deactivation of the plugin.
+	 *
+	 */
+	function deactivatePlugin ()
+	{
+		// Deactivate the cron action as the the plugin is deactivated.
+		wp_clear_scheduled_hook( 'avhfdas_clean_nonce' );
 	}
 
 	/**
@@ -446,7 +552,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	 */
 	function saveOptions ()
 	{
-		update_option( $this->db_options_name_core, $this->options );
+		update_option( $this->db_options_core, $this->options );
 		wp_cache_flush(); // Delete cache
 	}
 
@@ -457,7 +563,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	function resetToDefaultOptions ()
 	{
 		$this->options = $this->default_options;
-		update_option( $this->db_options_name_core, $this->options );
+		update_option( $this->db_options_core, $this->options );
 		wp_cache_flush(); // Delete cache
 	}
 
@@ -467,7 +573,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	 */
 	function deleteAllOptions ()
 	{
-		delete_option( $this->db_options_name_core, $this->default_options );
+		delete_option( $this->db_options_core, $this->default_options );
 		wp_cache_flush(); // Delete cache
 	}
 
@@ -496,8 +602,8 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 		}
 
 		if ( $message ) {
-			$status = ($status != '') ? $status : 'updated';
-			echo '<div id="message"	class="' . $status . ' fade">';
+			$status = ($status != '') ? $status : 'updated fade';
+			echo '<div id="message"	class="' . $status . '">';
 			echo '<p><strong>' . $message . '</strong></p></div>';
 		}
 	}

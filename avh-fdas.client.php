@@ -12,6 +12,7 @@ class AVH_FDAS_Core {
 	 *
 	 * @var string
 	 */
+	var $comment_general;
 	var $comment_begin;
 	var $comment_end;
 
@@ -37,23 +38,27 @@ class AVH_FDAS_Core {
 	var $default_general_options;
 	var $default_options;
 	var $default_spam;
+	var $default_nonces;
 
 	var $data;
 	var $default_data;
 	var $default_spam_data;
+	var $default_nonces_data;
+
 	/**
 	 * Name of the options field in the WordPress database options table.
 	 *
 	 * @var string
 	 */
-	var $db_options_name_core;
-	var $db_data;
+	var $db_options_core;
+	var $db_options_data;
+	var $db_options_nonces;
+
 	/**
 	* Endpoint of the stopforumspam.com API
 	*
 	* @var string
 	*/
-
 	var $stopforumspam_endpoint;
 
 	/**
@@ -63,12 +68,15 @@ class AVH_FDAS_Core {
 	function __construct ()
 	{
 
-		$this->version = "1.1";
+		$this->version = "1.2";
+		$this->comment_general = '<!-- AVH First Defense Against Spam version ' . $this->version . ' -->';
 		$this->comment_begin = '<!-- AVH First Defense Against Spam version ' . $this->version . ' Begin -->';
 		$this->comment_end = '<!-- AVH First Defense Against Spam version ' . $this->version . ' End -->';
 
-		$this->db_options_name_core = 'avhfdas';
-		$this->db_data = 'avhfdas_data';
+		$this->db_options_core = 'avhfdas';
+		$this->db_options_data = 'avhfdas_data';
+		$this->db_options_nonces ='avhfdas_nonces';
+
 		/**
 		 * Default options - General Purpose
 		 */
@@ -83,11 +91,14 @@ class AVH_FDAS_Core {
 				'blacklist' => '',
 				'usewhitelist' => 1,
 				'whitelist' => '',
+				'emailsecuritycheck' => 1,
 				'sfsapikey' => '',
 			);
 		$this->default_spam_data = array(
 				'counter' => 0,
 			);
+
+		$this->default_nonces_data = 'default';
 
 		/**
 		 * Default Options - All as stored in the DB
@@ -100,6 +111,10 @@ class AVH_FDAS_Core {
 		$this->default_data = array (
 				'spam' => $this->default_spam_data,
 			);
+		$this->default_nonces = array (
+				'default' => $this->default_nonces_data
+			);
+
 		/**
 		 * Set the options for the program
 		 *
@@ -190,7 +205,7 @@ class AVH_FDAS_Core {
 		$default_data = $this->default_data;
 
 		// Get options from WP options
-		$data_from_table = get_option( $this->db_data );
+		$data_from_table = get_option( $this->db_options_data );
 
 		if ( empty( $data_from_table ) ) {
 			$data_from_table = $this->default_data; // New installation
@@ -241,7 +256,7 @@ class AVH_FDAS_Core {
 		$default_options = $this->default_options;
 
 		// Get options from WP options
-		$options_from_table = get_option( $this->db_options_name_core );
+		$options_from_table = get_option( $this->db_options_core );
 
 		if ( empty( $options_from_table ) ) {
 			$options_from_table = $this->default_options; // New installation
@@ -262,7 +277,7 @@ class AVH_FDAS_Core {
 			// If a newer version is running do upgrades if neccesary and update the database.
 			if ( $this->version > $options_from_table['general']['version'] ) {
 				$default_options['general']['version'] = $this->version;
-				update_option( $this->db_options_name_core, $default_options );
+				update_option( $this->db_options_core, $default_options );
 			}
 		}
 		// Set the class property for options
@@ -427,6 +442,8 @@ class AVH_FDAS_Core {
 			} else {
 				$return_array = array ('Error' => 'Invalid call to stopforumspam' );
 			}
+		} else {
+			$return_array = array ('Error' => 'Unknown response from stopforumspam' );
 		}
 		return ($return_array);
 	}
@@ -630,14 +647,18 @@ class AVH_FDAS_Core {
  * Initialize the plugin
  *
  */
-function avh_FDAS__init ()
+function avh_FDAS_init ()
 {
 	// Admin
 	if ( is_admin() ) {
 		require (dirname( __FILE__ ) . '/inc/avh-fdas.admin.php');
 		$avhfdas_admin = & new AVH_FDAS_Admin( );
-		//Installation
+
+		// Activation Hook
 		register_activation_hook( __FILE__, array (& $avhfdas_admin, 'installPlugin' ) );
+
+		// Deactivation Hook
+		register_deactivation_hook( __FILE__, array (&$avhfdas_admin, 'deactivatePlugin'));;
 	}
 
 	// Include the public class
@@ -647,5 +668,5 @@ function avh_FDAS__init ()
 } // End avh_FDAS__init()
 
 
-add_action ( 'plugins_loaded', 'avh_FDAS__init' );
+add_action ( 'plugins_loaded', 'avh_FDAS_init' );
 ?>
