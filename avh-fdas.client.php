@@ -68,7 +68,7 @@ class AVH_FDAS_Core {
 	function __construct ()
 	{
 
-		$this->version = "1.2.2";
+		$this->version = "1.2.3";
 		$this->comment_general = '<!-- AVH First Defense Against Spam version ' . $this->version . ' -->';
 		$this->comment_begin = '<!-- AVH First Defense Against Spam version ' . $this->version . ' Begin -->';
 		$this->comment_end = '<!-- AVH First Defense Against Spam version ' . $this->version . ' End -->';
@@ -119,8 +119,11 @@ class AVH_FDAS_Core {
 		 * Set the options for the program
 		 *
 		 */
-		$this->handleOptions();
-		$this->handleData();
+		$this->options = $this->handleOptionsDB( $this->default_options, $this->db_options_core );
+		$this->data = $this->handleOptionsDB( $this->default_data, $this->db_options_data );
+
+		// Check if we have to do upgrades
+		$this->checkForUpgrade();
 
 		// Determine installation path & url
 		//$info['home_path'] = get_home_path();
@@ -195,36 +198,38 @@ class AVH_FDAS_Core {
 	}
 
 	/**
-	 * Sets the class property "data" to the data stored in the DB and if they do not exists set them to the default data
+	 * Sets data according to the the DB
 	 *
-	 * @since 1.0
+	 * @param array $default_data
+	 * @param atring $optionsdb
+	 * @return array
 	 *
+	 * @since 1.2.3
 	 */
-	function handleData ()
+	function handleOptionsDB ( $default_data, $optionsdb )
 	{
-		$default_data = $this->default_data;
 
 		// Get options from WP options
-		$data_from_table = get_option( $this->db_options_data );
+		$data_from_table = get_option( $optionsdb );
 
-		if ( empty( $data_from_table ) ) {
-			$data_from_table = $this->default_data; // New installation
-		} else {
+		if ( is_array( $data_from_table ) ) {
 			// Update default options by getting not empty values from options table
 			foreach ( $default_data as $section_key => $section_array ) {
-				foreach ( $section_array as $name => $value ) {
-					if ( ! is_null( $data_from_table[$section_key][$name] ) ) {
-						if ( is_int( $value ) ) {
-							$default_data[$section_key][$name] = ( int ) $data_from_table[$section_key][$name];
-						} else {
-							$default_data[$section_key][$name] = $data_from_table[$section_key][$name];
-						}
+				foreach ( array_keys( $section_array ) as $name ) {
+					/**
+					 * We only set the data if the following is all TRUE
+					 * 1. The option exists in the DB.
+					 * 2. If the value and type are different in the DB
+					 *
+					 * We don't handle the version option. This is handled seperately to accomodate upgrades.
+					 */
+					if ( isset( $data_from_table[$section_key][$name] ) && ('version' != $name) && (! ($default_data[$section_key][$name] === $data_from_table[$section_key][$name])) ) {
+						$default_data[$section_key][$name] = $data_from_table[$section_key][$name];
 					}
 				}
 			}
 		}
-		// Set the class property for data
-		$this->data = $default_data;
+		return ($default_data);
 	}
 
 	/**
@@ -245,47 +250,6 @@ class AVH_FDAS_Core {
 	}
 
 	/**
-	 * Sets the class property "options" to the options stored in the DB and if they do not exists set them to the default options
-	 * Checks if upgrades are necessary based on the version number
-	 *
-	 * @since 1.0
-	 *
-	 */
-	function handleOptions ()
-	{
-		$default_options = $this->default_options;
-
-		// Get options from WP options
-		$options_from_table = get_option( $this->db_options_core );
-
-		if ( empty( $options_from_table ) ) {
-			$options_from_table = $this->default_options; // New installation
-		} else {
-			// Update default options by getting not empty values from options table
-			foreach ( $default_options as $section_key => $section_array ) {
-				foreach ( $section_array as $name => $value ) {
-					if ( ! is_null( $options_from_table[$section_key][$name] ) ) {
-						if ( is_int( $value ) ) {
-							$default_options[$section_key][$name] = ( int ) $options_from_table[$section_key][$name];
-						} else {
-							$default_options[$section_key][$name] = $options_from_table[$section_key][$name];
-						}
-					}
-				}
-			}
-
-			// If a newer version is running do upgrades if neccesary and update the database.
-			if ( $this->version > $options_from_table['general']['version'] ) {
-				$default_options['general']['version'] = $this->version;
-				update_option( $this->db_options_core, $default_options );
-			}
-		}
-		// Set the class property for options
-		$this->options = $default_options;
-	} // End handleOptions()
-
-
-	/**
 	 * Get the value for an option. If there's no option is set on the Admin page, return the default value.
 	 *
 	 * @param string $key
@@ -300,6 +264,20 @@ class AVH_FDAS_Core {
 			$return = $this->default_options[$option][$key]; // Default
 		}
 		return ($return);
+	}
+
+	/**
+	 * Checks if running version is newer and do upgrades if necessary
+	 *
+	 * @since 1.2.3
+	 *
+	 */
+	function checkForUpgrade ()
+	{
+		if ( $this->version > $this->options['general']['version'] ) {
+			$this->options['general']['version'] = $this->version;
+			update_option( $this->db_options_core, $this->options );
+		}
 	}
 
 	/**
@@ -366,6 +344,7 @@ class AVH_FDAS_Core {
 		return getenv( 'REMOTE_ADDR' );
 
 	}
+
 	/**
 	 * Insert the CSS file
 	 *
@@ -445,33 +424,21 @@ class AVH_FDAS_Core {
 			$response = wp_remote_request( $url );
 			if ( ! is_wp_error( $response ) ) {
 				$xml_array = $this->ConvertXML2Array( $response['body'] );
+				if ( ! empty( $xml_array ) ) {
+					// Did the call succeed?
+					if ( 'true' == $xml_array['response_attr']['success'] ) {
+						$return_array = $xml_array['response'];
+					} else {
+						$return_array = array ('Error' => 'Invalid call to stopforumspam' );
+					}
+				} else {
+					$return_array = array ('Error' => 'Unknown response from stopforumspam' );
+				}
 			} else {
 				$return_array = array ('Error' => $response->errors );
 			}
-		} else { // Prior to WordPress 2.7 we'll use the Snoopy Class.
-			require_once (ABSPATH . 'wp-includes/class-snoopy.php');
-			$snoopy = new Snoopy( );
-			$snoopy->fetch( $url );
-			if ( ! $snoopy->error ) {
-				$response = $snoopy->results;
-				$xml_array = $this->ConvertXML2Array( $response );
-			} else {
-				$response = array ($snoopy->error => array (0 => $url ) );
-				$return_array = array ('Error' => $response );
-			}
 		}
 
-		// It will be empty if we had an error.
-		if ( ! empty( $xml_array ) ) {
-			// Did the call succeed?
-			if ( 'true' == $xml_array['response_attr']['success'] ) {
-				$return_array = $xml_array['response'];
-			} else {
-				$return_array = array ('Error' => 'Invalid call to stopforumspam' );
-			}
-		} else {
-			$return_array = array ('Error' => 'Unknown response from stopforumspam' );
-		}
 		return ($return_array);
 	}
 
@@ -485,11 +452,16 @@ class AVH_FDAS_Core {
 	 */
 	function getHttpError ( $error )
 	{
-		foreach ( $error as $key => $value ) {
-			$error_short = $key;
-			$error_long = $value[0];
+		if ( is_array( $error ) ) {
+			foreach ( $error as $key => $value ) {
+				$error_short = $key;
+				$error_long = $value[0];
+				$return = 'Error:' . $error_short . ' - ' . $error_long;
+			}
+		} else {
+			$return = 'Error:' . $error;
 		}
-		return '<strong>avhfdas error:' . $error_short . ' - ' . $error_long . '</strong>';
+		return $return;
 	}
 
 	/**

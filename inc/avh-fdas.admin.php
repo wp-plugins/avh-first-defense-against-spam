@@ -23,13 +23,13 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 
 		$this->installPlugin();
 		// Admin Capabilities
-		add_action( 'init', array (&$this, 'initRoles' ) );
+		add_action( 'init', array (&$this, 'actionInitRoles' ) );
 
 		// Admin menu
-		add_action( 'admin_menu', array (&$this, 'adminMenu' ) );
+		add_action( 'admin_menu', array (&$this, 'actionAdminMenu' ) );
 
 		// CSS Helper
-		add_action( 'admin_print_styles-settings_page_avhfdas_options', array (&$this, 'injectCSS' ) );
+		add_action( 'admin_print_styles-settings_page_avhfdas_options', array (&$this, 'actionInjectCSS' ) );
 
 		// Helper JS & jQuery & Prototype
 		$avhfdas_pages = array ('avhfdas_options' );
@@ -39,11 +39,11 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 
 		// Add the ajax action
 		//add_action('admin_init', array(&$this, 'ajaxCheck'));
-		add_action ( 'wp_ajax_avh-fdas-reportcomment', array ( &$this, 'ajaxCheck' ) );
+		add_action ( 'wp_ajax_avh-fdas-reportcomment', array ( &$this, 'actionAjaxReportComment' ) );
 
 		// Add admin actions
-		add_action('admin_action_blacklist',array(&$this,'handleBlacklistUrl'));
-		add_action('admin_action_emailreportspammer',array(&$this,'handleEmailReportingUrl'));
+		add_action('admin_action_blacklist',array(&$this,'actionHandleBlacklistUrl'));
+		add_action('admin_action_emailreportspammer',array(&$this,'actionHandleEmailReportingUrl'));
 
 		// Add Filter
 		add_filter('comment_row_actions',array(&$this,'filterCommentRowActions'),10,2);
@@ -63,8 +63,10 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	/**
 	 * Setup Roles
 	 *
+	 * @WordPress Action init
+	 * @since 1.0
 	 */
-	function initRoles ()
+	function actionInitRoles ()
 	{
 		if ( function_exists( 'get_role' ) ) {
 			$role = get_role( 'administrator' );
@@ -82,8 +84,10 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	/**
 	 * Add the Tools and Options to the Management and Options page repectively
 	 *
+	 * @WordPress Action admin_menu
+	 *
 	 */
-	function adminMenu ()
+	function actionAdminMenu ()
 	{
 		add_options_page( __( 'AVH First Defense Against Spam: Options', 'avhfdas' ), 'AVH First Defense Against Spam', 'avh_fdas', 'avhfdas_options', array (&$this, 'pageOptions' ) );
 		add_filter( 'plugin_action_links_avh-first-defense-against-spam/avh-fdas.php', array (&$this, 'filterPluginActions' ) );
@@ -92,6 +96,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	/**
 	 * Adds Settings next to the plugin actions
 	 *
+	 * @WordPress Filter plugin_action_links_avh-first-defense-against-spam/avh-fdas.php
 	 * @param array $links
 	 * @return array
 	 *
@@ -108,6 +113,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	/**
 	 * Adds an extra option on the comment row
 	 *
+	 * @WordPress Filter comment_row_actions
 	 * @param array $actions
 	 * @param class $comment
 	 * @return array
@@ -124,8 +130,10 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	/**
 	 * Checks if the user clicked on the Report & Delete link.
 	 *
+	 * @WordPress Action wp_ajax_avh-fdas-reportcomment
+	 *
 	 */
-	function ajaxCheck ()
+	function actionAjaxReportComment ()
 	{
 		if ( 'avh-fdas-reportcomment' == $_POST['action'] ) {
 			$comment_id = absint( $_REQUEST['id'] );
@@ -149,10 +157,11 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	/**
 	 * Handles the admin_action emailreportspammer call.
 	 *
+	 * @WordPress Action admin_action_emailreportspammer
 	 * @since 1.2
 	 *
 	 */
-	function handleEmailReportingUrl ()
+	function actionHandleEmailReportingUrl ()
 	{
 		if ( ! (isset( $_REQUEST['action'] ) && 'emailreportspammer' == $_REQUEST['action']) ) {
 			return;
@@ -161,15 +170,15 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 		$a = wp_specialchars( $_REQUEST['a'] );
 		$e = wp_specialchars( $_REQUEST['e'] );
 		$i = wp_specialchars( $_REQUEST['i'] );
-		$extra = '&m=10&i=' . $i;
+		$extra = '&m='.AVHFDAS_ERROR_INVALID_REQUEST.'&i=' . $i;
 		if ( $this->avh_verify_nonce( $_REQUEST['_avhnonce'], $a . $e . $i ) ) {
 			$all = get_option( $this->db_options_nonces );
-			$extra = '&m=11&i=' . $i;
+			$extra = '&m='.AVHFDAS_ERROR_NOT_REPORTED.'&i=' . $i;
 			if ( isset( $all[$_REQUEST['_avhnonce']] ) ) {
 				$this->handleReportSpammer( $a, $e, $i );
 				unset( $all[$_REQUEST['_avhnonce']] );
 				update_option( $this->db_nonce, $all );
-				$extra = '&m=12&i=' . $i;
+				$extra = '&m='.AVHFDAS_REPORTED.'&i=' . $i;
 			}
 			unset( $all );
 		}
@@ -200,8 +209,10 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	/**
 	 * Handles the admin_action_blacklist call
 	 *
+	 * @WordPress Action admin_action_blacklist
+	 *
 	 */
-	function handleBlacklistUrl ()
+	function actionHandleBlacklistUrl ()
 	{
 		if ( ! (isset( $_REQUEST['action'] ) && 'blacklist' == $_REQUEST['action']) ) {
 			return;
@@ -220,7 +231,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 				$this->setBlacklistOption( $b );
 			}
 		}
-		wp_redirect( admin_url( 'options-general.php?page=avhfdas_options&m=2&i=' . $ip ) );
+		wp_redirect( admin_url( 'options-general.php?page=avhfdas_options&m='.AVHFDAS_ADDED_BLACKLIST.'&i=' . $ip ) );
 	}
 
 	/**
@@ -398,40 +409,49 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 			)
 		);
 
-		// Update or reset options
+		// Update options
 		if ( isset( $_POST['updateoptions'] ) ) {
 			check_admin_referer( 'avhfdas-options' );
 
 			$formoptions = $_POST['avhfdas'];
 			foreach ( $this->options as $key => $value ) {
 				if ( 'general' != $key ) { // The data in General is used for internal usage.
+
 					foreach ( $value as $key2 => $value2 ) {
 						// Every field in a form is filled except unchecked checkboxes. Set an unchecked checkbox to 0.
 						$newval = (isset( $formoptions[$key][$key2] ) ? attribute_escape( $formoptions[$key][$key2] ) : 0);
 
-						// Check numeric entries
-						if ( 'whentoemail' == $key2 || 'whentodie' == $key2 ) {
-							if ( ! is_numeric( $formoptions[$key][$key2] ) ) {
-								$newval = $this->default_options[$key][$key2];
+						if ( $newval != $value2 ) { // Only process changed fields.
+
+							// Check numeric entries
+							if ( 'whentoemail' == $key2 || 'whentodie' == $key2 ) {
+								if ( ! is_numeric( $formoptions[$key][$key2] ) ) {
+									$newval = $this->default_options[$key][$key2];
+								}
+								$newval = ( int ) $newval;
 							}
-							$newval = ( int ) $newval;
-						}
-						if ( 'blacklist' == $key2 || 'whitelist' == $key2) {
-							$b = explode( "\r\n", $newval );
-							natsort( $b );
-							$newval = implode( "\r\n", $b );
-							unset( $b );
-						}
-						if ( $newval != $value2 ) {
+
+							// Sort the lists
+							if ( 'blacklist' == $key2 || 'whitelist' == $key2 ) {
+								$b = explode( "\r\n", $newval );
+								natsort( $b );
+								$newval = implode( "\r\n", $b );
+								unset( $b );
+							}
+
+							// Set the option to it's new value
 							$this->setOption( array ($key, $key2 ), $newval );
 						}
 					}
 				}
 			}
 			$this->saveOptions();
-			$this->message = 'Options saved';
+			$this->message = __('Options saved', 'avhfdas');
 			$this->status = 'updated fade';
-		} elseif ( isset( $_POST['reset_options'] ) ) {
+		}
+
+		// Reset options
+		if ( isset( $_POST['reset_options'] ) ) {
 			check_admin_referer( 'avhfdas-options' );
 			$this->resetToDefaultOptions();
 			$this->message = __( 'AVH First Defense Against Spam options set to default options!', 'avhfdas' );
@@ -440,30 +460,38 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 		// Show messages if needed.
 		if ( isset( $_REQUEST['m'] ) ) {
 			switch ( $_REQUEST['m'] ) {
-				case '1' :
+				case AVHFDAS_REPORTED_DELETED :
 					$this->status = 'updated fade';
 					$this->message = sprintf( __( 'IP [%s] Reported and deleted', 'avhfdas' ), attribute_escape( $_REQUEST['i'] ) );
 					break;
-				case '2' :
+
+				case AVHFDAS_ADDED_BLACKLIST :
 					$this->status = 'updated fade';
 					$this->message = sprintf( __( 'IP [%s] has been added to the blacklist', 'avhfdas' ), attribute_escape( $_REQUEST['i'] ) );
 					break;
-				case '10' :
-					$this->status = 'error';
-					$this->message = sprintf( __( 'Invalid request.', 'avhfdas' ) );
-					break;
-				case '11' :
-					$this->status = 'error';
-					$this->message = sprintf( __( 'IP [%s] not reported. Probably already processed.', 'avhfdas' ), attribute_escape( $_REQUEST['i'] ) );
-					break;
-				case '12' :
+
+				case AVHFDAS_REPORTED :
 					$this->status = 'updated fade';
 					$this->message = sprintf( __( 'IP [%s] reported.', 'avhfdas' ), attribute_escape( $_REQUEST['i'] ) );
 					break;
+
+				case AVHFDAS_ERROR_INVALID_REQUEST :
+					$this->status = 'error';
+					$this->message = sprintf( __( 'Invalid request.', 'avhfdas' ) );
+					break;
+
+				case AVHFDAS_ERROR_NOT_REPORTED :
+					$this->status = 'error';
+					$this->message = sprintf( __( 'IP [%s] not reported. Probably already processed.', 'avhfdas' ), attribute_escape( $_REQUEST['i'] ) );
+					break;
+
 				default :
-					$this->message = '';
+					$this->status = 'error';
+					$this->message = 'Unknown message request';
 			}
 		}
+
+		// Actually display the message
 		$this->displayMessage();
 
 		echo '<script type="text/javascript">';
@@ -611,8 +639,9 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	/**
 	 * Print link to CSS
 	 *
+	 * @WordPress Action admin_print_styles-settings_page_avhfdas_options
 	 */
-	function injectCSS ()
+	function actionInjectCSS ()
 	{
 		wp_enqueue_style( 'avhfdasadmin', $this->info['install_url'] . '/inc/avh-fdas.admin.css', array (), $this->version, 'screen' );
 	}
@@ -625,6 +654,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	 */
 	function printOptions ( $option_data )
 	{
+
 		// Get actual options
 		$option_actual = ( array ) $this->options;
 
@@ -644,6 +674,7 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 				}
 
 				switch ( $option[2] ) {
+
 					case 'checkbox' :
 						$input_type = '<input type="checkbox" id="' . $option[0] . '" name="' . $option[0] . '" value="' . attribute_escape( $option[3] ) . '" ' . $this->isChecked( '1', $option_actual[$section][$option_key] ) . ' />' . "\n";
 						$checkbox .= $option[0] . '|';
@@ -730,8 +761,11 @@ class AVH_FDAS_Admin extends AVH_FDAS_Core
 	 */
 	function isChecked ( $checked, $current )
 	{
-		if ( $checked == $current )
-			return (' checked="checked"');
+		$return ='';
+		if ( $checked == $current ) {
+			$return =' checked="checked"';
+		}
+		return $return;
 	}
 }
 ?>
