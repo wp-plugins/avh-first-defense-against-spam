@@ -4,7 +4,7 @@ Donate link: http://blog.avirtualhome.com/wordpress-plugins/
 Tags: spam, block, blacklist, whitelist, comment
 Requires at least: 2.7
 Tested up to: 2.8
-Stable tag: 2.0
+Stable tag: 2.0.1
 
 The AVH First Defense Against Spam plugin gives you the ability to block spammers before any content is served.
 
@@ -75,6 +75,9 @@ You will have to sign up on their site, http://www.projecthoneypot.org/create_ac
 3. The option Report & Delete
 
 == Changelog ==
+= Version 2.0.1 =
+* Bugfix: The function comment_footer_die was undefined.
+
 = Version 2.0 =
 * RFC: Optionally check the visitor at Project Honey Pot.
 * RFC: Optionally receive error emails for failed calls to Stop Forum Spam. Error mails were always received.
