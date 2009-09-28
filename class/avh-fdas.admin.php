@@ -96,7 +96,7 @@ class AVH_FDAS_Admin
 		$this->hooks['avhfdas_menu_overview'] = add_submenu_page( $folder, 'AVH First Defense Against Spam: ' . __( 'Overview,avh-fdas' ), __( 'Overview', 'avh-fdas' ), 'role_avh_fdas', $folder, array (&$this, 'doMenuOverview' ) );
 		$this->hooks['avhfdas_menu_general'] = add_submenu_page( $folder, 'AVH First Defense Against Spam:' . __( 'General Options', 'avh-fdas' ), __( 'General Options', 'avh-fdas' ), 'role_avh_fdas', 'avh-fdas-general', array (&$this, 'doMenuGeneralOptions' ) );
 		$this->hooks['avhfdas_menu_3rd_party'] = add_submenu_page( $folder, 'AVH First Defense Against Spam:' . __( '3rd Party Options', 'avh-fdas' ), __( '3rd Party Options', 'avh-fdas' ), 'role_avh_fdas', 'avh-fdas-3rd-party', array (&$this, 'doMenu3rdPartyOptions' ) );
-		$this->hooks['avhfdas_menu_faq'] = add_submenu_page( $folder, 'AVH First Defense Against Spam:' . __( 'F.A.Q', 'avh-fdas' ), __( 'F.A.Q', 'avh-fdas' ), 'role_avh_fdas', 'avh-fdas-faq', array (&$this, 'doMenuFAQ()' ) );
+		$this->hooks['avhfdas_menu_faq'] = add_submenu_page( $folder, 'AVH First Defense Against Spam:' . __( 'F.A.Q', 'avh-fdas' ), __( 'F.A.Q', 'avh-fdas' ), 'role_avh_fdas', 'avh-fdas-faq', array (&$this, 'doMenuFAQ' ) );
 
 		// Add actions for menu pages
 		add_action( 'load-' . $this->hooks['avhfdas_menu_overview'], array (&$this, actionLoadPageHook_Overview ) );
@@ -723,7 +723,7 @@ class AVH_FDAS_Admin
 		global $screen_layout_columns;
 
 		// This box can't be unselectd in the the Screen Options
-		add_meta_box( 'avhfdasBoxDonations', __( 'Donations', 'avhfdas' ), array (&$this, 'metaboxDonations' ), $this->hooks['avhfdas_menu_faq'], 'normal', 'core' );
+		add_meta_box( 'avhfdasBoxDonations', __( 'Donations', 'avhfdas' ), array (&$this, 'metaboxDonations' ), $this->hooks['avhfdas_menu_faq'], 'side', 'core' );
 		$hide2 = '';
 		switch ( $screen_layout_columns ) {
 			case 2 :
@@ -870,7 +870,7 @@ class AVH_FDAS_Admin
 		echo '</p>';
 		echo '<p>';
 		echo '<span class="b">Through Paypal.</span><br />';
-		echo 'Click on the Donate button and you will be directed to Paypal where you can make your donation and you don\'t need to have a Paypal account to make a donation.';
+		echo 'Click on the Donate button and you will be directed to Paypal where you can make your donation and you don\'t need to have a Paypal account to make a donation.<br />';
 		echo '<a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=S85FXJ9EBHAF2&lc=US&item_name=AVH%20Plugins&item_number=fdas&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted" target="_blank" title="Donate">';
 		echo '<img src="https://www.paypal.com/en_US/i/btn/btn_donateCC_LG.gif" alt="Donate"/></a>';
 		echo '</p>';
@@ -897,7 +897,7 @@ class AVH_FDAS_Admin
 				$columns[$this->hooks['avhfdas_menu_3rd_party']] = 2;
 				break;
 			case $this->hooks['avhfdas_menu_faq'] :
-				$columns[$this->hooks['avhfdas_menu_3rd_party']] = 1;
+				$columns[$this->hooks['avhfdas_menu_faq']] = 2;
 				break;
 
 		}
