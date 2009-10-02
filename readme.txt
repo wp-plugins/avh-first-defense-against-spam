@@ -52,6 +52,7 @@ You can check the statistics to see how many IP's are in the database. If you ha
 
 = Checking Order and Actions =
 The plugin checks the visiting IP in the following order, only if that feature is enabled of course.
+
 1. Whitelist - If found skip the rest of the checks.
 1. Blacklist - If found terminate the connection.
 1. IP Caching - If found and spam terminate connection, if found and clean skip the rest of the checks.
