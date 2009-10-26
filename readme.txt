@@ -4,7 +4,7 @@ Donate link: http://blog.avirtualhome.com/wordpress-plugins/
 Tags: spam, block, blacklist, whitelist, comment
 Requires at least: 2.7
 Tested up to: 2.8
-Stable tag: 2.0.1
+Stable tag: 2.2
 
 The AVH First Defense Against Spam plugin gives you the ability to block spammers before any content is served.
 
@@ -28,12 +28,37 @@ Spammers are identified by checking if the visitors IP exists in a database serv
 * Report a spammer to Stop Forum Spam. A valid API key from Stop Forum Spam is necessary.
 * Add a spammer to the local blacklist by clicking a link in the received email.
 * Block spammers that access wp-comments-post.php directly by using a comment security check. An email can be send when the check fails.
- 
+* IP Caching system.
+* Use a honey pot from Project Honey Pot
+
 Blocking a potential spammer before content is served has the following advantages:
 
 1. It saves bandwidth.
 1. It saves CPU cycles. The spammer is actually checked and blocked before WordPress starts building the page.
 1. If you keep track of how many visitors your site has, either by using Google's Analytics, WP-Stats or any other one, it will give you a cleaner statistic of visits your site receives. 
+
+
+= The IP Caching system. =
+Stop Forum spam has set a limit on the amount of API calls you can make a day, currently it iset at 5000 calls a day.
+This means that if you don't use the Blacklist and/or Whitelist you are limited to 5000 visits/day on your site. To overcome this possible problem I wrote an IP caching system.
+If you use the caching system you still have a limit with Stop Forum Spam , but the limit is set to 5000 unique visits/day.
+
+The following IP's are cached locally:
+
+1. Every IP identified as spam and triggering the terminate-the-connection threshold.
+1. Every clean IP.
+
+Only returning IP's that were previously identified as spammer and who's connection was terminated will update their last seen date in the caching system. 
+Every day, once a day, a routine runs to remove the IP's who's last seen date is X amount of days older than the date the routine runs. You can set the days in the adminstration section of the plugin.
+You can check the statistics to see how many IP's are in the database. If you have a busy site, with a lot of unique visitors, you might have to play with the "Days to keep in cache" setting to keep the size under control.
+
+= Checking Order and Actions =
+The plugin checks the visiting IP in the following order, only if that feature is enabled of course.
+
+1. Whitelist - If found skip the rest of the checks.
+1. Blacklist - If found terminate the connection.
+1. IP Caching - If found and spam terminate connection, if found and clean skip the rest of the checks.
+1. 3rd Parties - If found determine action based on result.
 
 To my knowledge this plugin is fully compatible with other anti-spam plugins, I have tested it with WP-Spamfree and Akismet.
 
@@ -63,7 +88,7 @@ You need to have an API key from Stop Forum Spam. If you do on the Edit Comments
 = How do I get a Stop Forum Spam API key? =
 You will have to sign up on their site, http://www.stopforumspam.com/signup .
 
-= How do I get a Project Honey Pot API key?=
+= How do I get a Project Honey Pot API key? =
 You will have to sign up on their site, http://www.projecthoneypot.org/create_account.php .
 
 == Screenshots ==
@@ -75,6 +100,28 @@ You will have to sign up on their site, http://www.projecthoneypot.org/create_ac
 3. The option Report & Delete
 
 == Changelog ==
+
+= Version 2.2 =
+* Changed initial settings for email to not send E-Mail. This is better for busy sites.
+* Option for using a honey pot page by Project Honey Pot.
+* Change in IP caching system. Added the field lastseen. This field will be updated if an IP returns which was previously identified as spam. The daily cleaning of the IP cache database will use this field to determine if the record will be deleted. 
+* Bugfix: Database version was never saved.
+* Bugfix: When HTP connection failed, IP was added as no-spam in cache when cache is active.
+* Bugfix: Uninstall didn't work.
+* Bugfix: Validate admin fields.
+
+= Version 2.1.2 =
+* Bugfix: Settings link on plugin page was incorrect.
+
+= Version 2.1.1 =
+* Bugfix: Menu Option FAQ threw an error.
+
+= Version 2.1 =
+* Added an IP caching system.
+* Administrative layout changes.
+* Optional email can be send with information about the cron jobs of the plugin.
+* Bugfix: The default setting to terminate the connection for Project Honey Pot was unrealistic.
+
 = Version 2.0.1 =
 * Bugfix: The function comment_footer_die was undefined.
 
