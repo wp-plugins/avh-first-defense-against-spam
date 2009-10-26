@@ -12,6 +12,7 @@ class AVH_FDAS_Core
 	 * @var string
 	 */
 	var $version;
+	var $db_version;
 
 	/**
 	 * Comments used in HTML do identify the plugin
@@ -75,8 +76,8 @@ class AVH_FDAS_Core
 	 */
 	function __construct ()
 	{
-		$this->version = "2.1.2";
-		$db_version = 4;
+		$this->version = "2.2";
+		$this->db_version = 6;
 		$this->comment = '<!-- AVH First Defense Against Spam version ' . $this->version;
 		$this->db_options_core = 'avhfdas';
 		$this->db_options_data = 'avhfdas_data';
@@ -85,9 +86,9 @@ class AVH_FDAS_Core
 		/**
 		 * Default options - General Purpose
 		 */
-		$this->default_general_options = array ('version' => $this->version, 'dbversion' => $db_version, 'use_sfs' => 1, 'use_php' => 0, 'useblacklist' => 1, 'usewhitelist' => 1, 'diewithmessage' => 1, 'emailsecuritycheck' => 1, 'useipcache' => 0, 'cron_nonces_email' => 0, 'cron_ipcache_email' => 0 );
-		$this->default_spam = array ('whentoemail' => 1, 'emailphp' => 0, 'whentodie' => 3, 'sfsapikey' => '', 'error' => 1 );
-		$this->default_honey = array ('whentoemailtype' => 0, 'whentoemail' => 0, 'whentodietype' => 4, 'whentodie' => 25, 'phpapikey' => '' );
+		$this->default_general_options = array ('version' => $this->version, 'dbversion' => $this->db_version, 'use_sfs' => 1, 'use_php' => 0, 'useblacklist' => 1, 'usewhitelist' => 1, 'diewithmessage' => 1, 'emailsecuritycheck' => 0, 'useipcache' => 0, 'cron_nonces_email' => 0, 'cron_ipcache_email' => 0 );
+		$this->default_spam = array ('whentoemail' => - 1, 'emailphp' => 0, 'whentodie' => 3, 'sfsapikey' => '', 'error' => 0 );
+		$this->default_honey = array ('whentoemailtype' => - 1, 'whentoemail' => - 1, 'whentodietype' => 4, 'whentodie' => 25, 'phpapikey' => '', 'usehoneypot' => 0, 'honeypoturl' => '' );
 		$this->default_ipcache = array ('email' => 0, 'daystokeep' => 7 );
 		$this->default_spam_data = array ('190001' => 0 );
 		$this->default_data_lists = array ('blacklist' => '', 'whitelist' => '' );
@@ -110,7 +111,7 @@ class AVH_FDAS_Core
 
 
 		// Check if we have to do upgrades
-		if ( (! isset( $this->options['general']['dbversion'] )) || $this->options['general']['dbversion'] < $db_version ) {
+		if ( (! isset( $this->options['general']['dbversion'] )) || $this->options['general']['dbversion'] < $this->db_version ) {
 			$this->doUpgrade();
 		}
 
@@ -233,7 +234,11 @@ class AVH_FDAS_Core
 
 		// Introduced dbversion starting with v2.1
 		if ( ! isset( $options['general']['dbversion'] ) || $options['general']['dbversion'] < 4 ) {
-			$this->doUpgrade21( $options, $data );
+			list ( $options, $data ) = $this->doUpgrade21( $options, $data );
+		}
+
+		if ( $options['general']['dbversion'] < 5 ) {
+			list ( $options, $data ) = $this->doUpgrade22( $options, $data );
 		}
 
 		// Add none existing sections and/or elements to the options
@@ -262,6 +267,7 @@ class AVH_FDAS_Core
 			}
 		}
 		$options['general']['version'] = $this->version;
+		$options['general']['dbversion'] = $this->db_version;
 		$this->saveOptions( $options );
 		$this->saveData( $data );
 	}
@@ -326,6 +332,33 @@ class AVH_FDAS_Core
 			$role->remove_cap( 'admin_avh_fdas' );
 			$role->add_cap( 'role_admin_avh_fdas' );
 		}
+
+		return array ($new_options, $new_data );
+	}
+
+	/**
+	 * Upgrade to version 2.2
+	 *
+	 * @param $options
+	 * @param $data
+	 */
+	function doUpgrade22 ( $old_options, $old_data )
+	{
+		global $wpdb;
+
+		$new_options = $old_options;
+		$new_data = $old_data;
+
+		$sql = 'ALTER TABLE `' . $wpdb->avhfdasipcache . '`
+				CHANGE COLUMN `date` `added` DATETIME  NOT NULL DEFAULT \'0000-00-00 00:00:00\',
+				ADD COLUMN `lastseen` DATETIME  NOT NULL DEFAULT \'0000-00-00 00:00:00\' AFTER `added`,
+				DROP INDEX `date`,
+				ADD INDEX `added`(`added`),
+				ADD INDEX `lastseen`(`lastseen`);';
+		$result = $wpdb->query( $sql );
+
+		$sql = 'UPDATE ' . $wpdb->avhfdasipcache . ' SET `lastseen` = `added`;';
+		$result = $wpdb->query( $sql );
 
 		return array ($new_options, $new_data );
 	}

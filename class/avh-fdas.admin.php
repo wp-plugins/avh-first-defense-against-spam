@@ -46,8 +46,8 @@ class AVH_FDAS_Admin
 
 		// Register Styles and SCripts
 		$suffix = defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '.dev' : '';
-		wp_register_script( 'avhfdasadmin', $this->core->info['plugin_url'] . '/js/avh-fdas.admin' . $suffix . '.js', array ('jquery' ), $this->core->version, true );
-		wp_register_style( 'avhfdasadmin', $this->core->info['plugin_url'] . '/css/avh-fdas.admin.css', array (), $this->core->version, 'screen' );
+		wp_register_script( 'avhfdas-admin-js', $this->core->info['plugin_url'] . '/js/avh-fdas.admin' . $suffix . '.js', array ('jquery' ), $this->core->version, true );
+		wp_register_style( 'avhfdas-admin-css', $this->core->info['plugin_url'] . '/css/avh-fdas.admin.css', array (), $this->core->version, 'screen' );
 
 		return;
 	}
@@ -99,10 +99,10 @@ class AVH_FDAS_Admin
 		$this->hooks['avhfdas_menu_faq'] = add_submenu_page( $folder, 'AVH First Defense Against Spam:' . __( 'F.A.Q', 'avh-fdas' ), __( 'F.A.Q', 'avh-fdas' ), 'role_avh_fdas', 'avh-fdas-faq', array (&$this, 'doMenuFAQ' ) );
 
 		// Add actions for menu pages
-		add_action( 'load-' . $this->hooks['avhfdas_menu_overview'], array (&$this, actionLoadPageHook_Overview ) );
-		add_action( 'load-' . $this->hooks['avhfdas_menu_general'], array (&$this, actionLoadPageHook_General ) );
-		add_action( 'load-' . $this->hooks['avhfdas_menu_3rd_party'], array (&$this, actionLoadPageHook_3rd_party ) );
-		add_action( 'load-' . $this->hooks['avhfdas_menu_faq'], array (&$this, actionLoadPageHook_faq ) );
+		add_action( 'load-' . $this->hooks['avhfdas_menu_overview'], array (&$this, 'actionLoadPageHook_Overview' ) );
+		add_action( 'load-' . $this->hooks['avhfdas_menu_general'], array (&$this, 'actionLoadPageHook_General' ) );
+		add_action( 'load-' . $this->hooks['avhfdas_menu_3rd_party'], array (&$this, 'actionLoadPageHook_3rd_party' ) );
+		add_action( 'load-' . $this->hooks['avhfdas_menu_faq'], array (&$this, 'actionLoadPageHook_faq' ) );
 
 	}
 
@@ -123,8 +123,8 @@ class AVH_FDAS_Admin
 		wp_admin_css( 'css/dashboard' );
 
 		// Plugin Style and Scripts
-		wp_enqueue_script( 'avhfdasadmin' );
-		wp_enqueue_style( 'avhfdasadmin' );
+		wp_enqueue_script( 'avhfdas-admin-js' );
+		wp_enqueue_style( 'avhfdas-admin-css' );
 
 	}
 
@@ -140,7 +140,8 @@ class AVH_FDAS_Admin
 		// This box can't be unselectd in the the Screen Options
 		add_meta_box( 'avhfdasBoxDonations', __( 'Donations', 'avhfdas' ), array (&$this, 'metaboxDonations' ), $this->hooks['avhfdas_menu_overview'], 'normal', 'core' );
 		$hide2 = '';
-		switch ( $screen_layout_columns ) {
+		switch ( $screen_layout_columns )
+		{
 			case 2 :
 				$width = 'width:49%;';
 				break;
@@ -311,8 +312,8 @@ class AVH_FDAS_Admin
 		wp_admin_css( 'css/dashboard' );
 
 		// Plugin Style and Scripts
-		wp_enqueue_script( 'avhfdasadmin' );
-		wp_enqueue_style( 'avhfdasadmin' );
+		wp_enqueue_script( 'avhfdas-admin-js' );
+		wp_enqueue_style( 'avhfdas-admin-css' );
 
 	}
 
@@ -355,7 +356,8 @@ class AVH_FDAS_Admin
 				$option_key = rtrim( $option[0], ']' );
 				$option_key = substr( $option_key, strpos( $option_key, '][' ) + 2 );
 
-				switch ( $section ) {
+				switch ( $section )
+				{
 					case 'general' :
 					case 'ipcache' :
 						$current_value = $options[$section][$option_key];
@@ -376,7 +378,8 @@ class AVH_FDAS_Admin
 						$newval = implode( "\r\n", $b );
 						unset( $b );
 					}
-					switch ( $section ) {
+					switch ( $section )
+					{
 						case 'general' :
 						case 'ipcache' :
 							$options[$section][$option_key] = $newval;
@@ -406,7 +409,8 @@ class AVH_FDAS_Admin
 		}
 		// Show messages if needed.
 		if ( isset( $_REQUEST['m'] ) ) {
-			switch ( $_REQUEST['m'] ) {
+			switch ( $_REQUEST['m'] )
+			{
 				case AVHFDAS_REPORTED_DELETED :
 					$this->status = 'updated fade';
 					$this->message = sprintf( __( 'IP [%s] Reported and deleted', 'avhfdas' ), attribute_escape( $_REQUEST['i'] ) );
@@ -442,7 +446,8 @@ class AVH_FDAS_Admin
 		$actual_options = array_merge( $this->core->getOptions(), $this->core->getData() );
 
 		$hide2 = '';
-		switch ( $screen_layout_columns ) {
+		switch ( $screen_layout_columns )
+		{
 			case 2 :
 				$width = 'width:49%;';
 				break;
@@ -558,8 +563,8 @@ class AVH_FDAS_Admin
 		wp_admin_css( 'css/dashboard' );
 
 		// Plugin Style and Scripts
-		wp_enqueue_script( 'avhfdasadmin' );
-		wp_enqueue_style( 'avhfdasadmin' );
+		wp_enqueue_script( 'avhfdas-admin-js' );
+		wp_enqueue_style( 'avhfdas-admin-css' );
 
 	}
 
@@ -585,6 +590,8 @@ class AVH_FDAS_Admin
 		$options_php[] = array ('avhfdas[php][whentoemail]', 'Email score threshold', 'text', 3, 'When the score of the spammer in the Project Honey Pot database equals or exceeds this threshold an email is send.<BR />A negative number means an email will never be send.' );
 		$options_php[] = array ('avhfdas[php][whentodietype]', 'Termination type threshold', 'dropdown', '-1/0/1/2/3/4/5/6/7', 'Never/Search Engine/Suspicious/Harvester/Suspicious & Harvester/Comment Spammer/Suspicious & Comment Spammer/Harvester & Comment Spammer/Suspicious & Harvester & Comment Spammer', 'When the type of the spammer in the Project Honey Pot database equals or exceeds this threshold an email is send.<br />Both the type threshold and the score threshold have to be reached in order to termnate the connection. ' );
 		$options_php[] = array ('avhfdas[php][whentodie]', 'Termination score threshold', 'text', 3, 'When the score of the spammer in the Project Honey Pot database equals or exceeds this threshold the connection is terminated.<BR />A negative number means the connection will never be terminated.<BR /><strong>This option will always be the last one checked.</strong>' );
+		$options_php[] = array ('avhfdas[php][usehoneypot]', 'Use Honey Pot', 'checkbox', 1, 'If you have set up a Honey Pot you can select to have the text below to be added to the message when terminating the connection.<BR />You have to select <em>Show Message</em> in the General Options for this to work.' );
+		$options_php[] = array ('avhfdas[php][honeypoturl]', 'Honey Pot URL', 'text', 30, 'The link to the Honey Pot as suggested by Project Honey Pot.' );
 
 		if ( isset( $_POST['updateoptions'] ) ) {
 			check_admin_referer( 'avh_fdas_options' );
@@ -603,10 +610,19 @@ class AVH_FDAS_Admin
 				// Every field in a form is set except unchecked checkboxes. Set an unchecked checkbox to 0.
 
 
-				$newval = (isset( $formoptions[$section][$option_key] ) ? attribute_escape( $formoptions[$section][$option_key] ) : 0);
+				$newval = (isset( $formoptions[$section][$option_key] ) ? $formoptions[$section][$option_key] : 0);
+				if ( 'sfs' == $section && ('whentoemail' == $option_key || 'whentodie' == $option_key) ) {
+					$newval = ( int ) $newval;
+				}
+
+				if ( 'php' == $section && ('whentoemail' == $option_key || 'whentodie' == $option_key) ) {
+					$newval = ( int ) $newval;
+				}
+
 				if ( $newval != $current_value ) { // Only process changed fields
 					$options[$section][$option_key] = $newval;
 				}
+
 			}
 			$note = '';
 			if ( empty( $options['php']['phpapikey'] ) ) {
@@ -623,7 +639,8 @@ class AVH_FDAS_Admin
 		$actual_options = array_merge( $this->core->getOptions(), $this->core->getData() );
 
 		$hide2 = '';
-		switch ( $screen_layout_columns ) {
+		switch ( $screen_layout_columns )
+		{
 			case 2 :
 				$width = 'width:49%;';
 				break;
@@ -708,8 +725,8 @@ class AVH_FDAS_Admin
 		wp_admin_css( 'css/dashboard' );
 
 		// Plugin Style and Scripts
-		wp_enqueue_script( 'avhfdasadmin' );
-		wp_enqueue_style( 'avhfdasadmin' );
+		wp_enqueue_script( 'avhfdas-admin-js' );
+		wp_enqueue_style( 'avhfdas-admin-css' );
 
 	}
 
@@ -725,7 +742,8 @@ class AVH_FDAS_Admin
 		// This box can't be unselectd in the the Screen Options
 		add_meta_box( 'avhfdasBoxDonations', __( 'Donations', 'avhfdas' ), array (&$this, 'metaboxDonations' ), $this->hooks['avhfdas_menu_faq'], 'side', 'core' );
 		$hide2 = '';
-		switch ( $screen_layout_columns ) {
+		switch ( $screen_layout_columns )
+		{
 			case 2 :
 				$width = 'width:49%;';
 				break;
@@ -784,7 +802,8 @@ class AVH_FDAS_Admin
 		echo '</p>';
 
 		echo '<p>';
-		echo 'Every day , once a day, a routine runs to remove the IP\'s that are older than a given day. You can set this day in the admintration section of the plugin.<br />';
+		echo 'Only returning IP\'s that were previously identified as spammer and who\'s connection was terminated will update their last seen date in the caching system.<br />';
+		echo 'Every day, once a day, a routine runs to remove the IP\'s who\'s last seen date is X amount of days older than the date the routine runs. You can set the days in the adminstration section of the plugin.<br />';
 		echo 'You can check the statistics to see how many IP\'s are in the database. If you have a busy site, with a lot of unique visitors, you might have to play with the "Days to keep in cache" setting to keep the size under control.<br />';
 		echo '</p>';
 
@@ -865,7 +884,10 @@ class AVH_FDAS_Admin
 	{
 		echo '<p>If you enjoy this plug-in please consider a donation. There are several ways you can show your appreciation</p>';
 		echo '<p>';
-		echo '<span class="b">Amazon Wish List</span><br />';
+		echo '<span class="b">Amazon</span><br />';
+		echo 'If you decide to buy something from Amazon click the button.<br />';
+		echo '<a href="https://www.amazon.com/?&tag=avh-donation-20" target="_blank" title="Amazon Homepage"><img alt="Amazon Button" src="' . $this->core->info['graphics_url'] . '/us_banner_logow_120x60.gif" /></a></p>';
+		echo '<p>';
 		echo 'You can send me something from my <a href="http://www.amazon.com/gp/registry/wishlist/1U3DTWZ72PI7W?tag=avh-donation-20">Amazon Wish List</a>';
 		echo '</p>';
 		echo '<p>';
@@ -886,7 +908,8 @@ class AVH_FDAS_Admin
 
 	function filterScreenLayoutColumns ( $columns, $screen )
 	{
-		switch ( $screen ) {
+		switch ( $screen )
+		{
 			case $this->hooks['avhfdas_menu_overview'] :
 				$columns[$this->hooks['avhfdas_menu_overview']] = 2;
 				break;
@@ -1104,13 +1127,19 @@ class AVH_FDAS_Admin
 				$charset_collate .= ' COLLATE ' . $wpdb->collate;
 		}
 
-		$ipcache = $wpdb->prefix . 'avhfdas_ipcache';
+		if ( $wpdb->get_var( 'show tables like \'' . $wpdb->avhfdasipcache . '\'' ) != $wpdb->avhfdasipcache ) {
 
-		if ( $wpdb->get_var( 'show tables like \'' . $ipcache . '\'' ) != $ipcache ) {
+			$sql = 'CREATE TABLE `' . $wpdb->avhfdasipcache . '` (
+  					`ip` int(10) unsigned NOT NULL,
+  					`added` datetime NOT NULL DEFAULT \'0000-00-00 00:00:00\',
+  					`lastseen` datetime NOT NULL DEFAULT \'0000-00-00 00:00:00\',
+  					`spam` tinyint(1) NOT NULL,
+  					PRIMARY KEY (`ip`),
+  					KEY `added` (`added`),
+  					KEY `lastseen` (`lastseen`)
+					) ' . $charset_collate . ';';
 
-			$sql = 'CREATE TABLE ' . $ipcache . ' (ip INT UNSIGNED NOT NULL , date DATETIME NOT NULL DEFAULT \'0000-00-00 00:00:00\', spam BOOLEAN NOT NULL, PRIMARY KEY ip (ip), KEY date (date)) ' . $charset_collate . ';';
-
-			dbDelta( $sql );
+			$result = $wpdb->query( $sql );
 		}
 
 	}
@@ -1220,7 +1249,8 @@ class AVH_FDAS_Admin
 				$output .= '<tr style="vertical-align: top;"><td class="helper" colspan="2">' . $option[4] . '</td></tr>' . "\n";
 				continue;
 			}
-			switch ( $option[2] ) {
+			switch ( $option[2] )
+			{
 				case 'checkbox' :
 					$input_type = '<input type="checkbox" id="' . $option[0] . '" name="' . $option[0] . '" value="' . attribute_escape( $option[3] ) . '" ' . $this->isChecked( '1', $option_actual[$section][$option_key] ) . ' />' . "\n";
 					$explanation = $option[4];
@@ -1236,16 +1266,16 @@ class AVH_FDAS_Admin
 					$explanation = $option[5];
 					break;
 				case 'text-color' :
-					$input_type = '<input type="text" ' . (($option[3] > 50) ? ' style="width: 95%" ' : '') . 'id="' . $option[0] . '" name="' . $option[0] . '" value="' . attribute_escape( $option_actual[$section][$option_key] ) . '" size="' . $option[3] . '" /><div class="box_color ' . $option[0] . '"></div>' . "\n";
+					$input_type = '<input type="text" ' . (($option[3] > 50) ? ' style="width: 95%" ' : '') . 'id="' . $option[0] . '" name="' . $option[0] . '" value="' . attribute_escape( stripcslashes( $option_actual[$section][$option_key] ) ) . '" size="' . $option[3] . '" /><div class="box_color ' . $option[0] . '"></div>' . "\n";
 					$explanation = $option[4];
 					break;
 				case 'textarea' :
-					$input_type = '<textarea rows="' . $option[5] . '" ' . (($option[3] > 50) ? ' style="width: 95%" ' : '') . 'id="' . $option[0] . '" name="' . $option[0] . '" size="' . $option[3] . '" />' . attribute_escape( $option_actual[$section][$option_key] ) . '</textarea>';
+					$input_type = '<textarea rows="' . $option[5] . '" ' . (($option[3] > 50) ? ' style="width: 95%" ' : '') . 'id="' . $option[0] . '" name="' . $option[0] . '" size="' . $option[3] . '" />' . attribute_escape( stripcslashes( $option_actual[$section][$option_key] ) ) . '</textarea>';
 					$explanation = $option[4];
 					break;
 				case 'text' :
 				default :
-					$input_type = '<input type="text" ' . (($option[3] > 50) ? ' style="width: 95%" ' : '') . 'id="' . $option[0] . '" name="' . $option[0] . '" value="' . attribute_escape( $option_actual[$section][$option_key] ) . '" size="' . $option[3] . '" />' . "\n";
+					$input_type = '<input type="text" ' . (($option[3] > 50) ? ' style="width: 95%" ' : '') . 'id="' . $option[0] . '" name="' . $option[0] . '" value="' . attribute_escape( stripcslashes( $option_actual[$section][$option_key] ) ) . '" size="' . $option[3] . '" />' . "\n";
 					$explanation = $option[4];
 					break;
 			}

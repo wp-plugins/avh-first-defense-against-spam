@@ -89,7 +89,7 @@ class AVH_FDAS_Public
 		$options = $this->core->getOptions();
 		$date = current_time( 'mysql' );
 		$days = $options['ipcache']['daystokeep'];
-		$result = $wpdb->query( $wpdb->prepare( "DELETE FROM $wpdb->avhfdasipcache WHERE ((TO_DAYS(%s))-(TO_DAYS(date))) > %d", $date, $days ) );
+		$result = $wpdb->query( $wpdb->prepare( "DELETE FROM $wpdb->avhfdasipcache WHERE ((TO_DAYS(%s))-(TO_DAYS(lastseen))) > %d", $date, $days ) );
 
 		if ( $options['general']['cron_ipcache_email'] ) {
 			$to = get_option( 'admin_email' );
@@ -161,6 +161,10 @@ class AVH_FDAS_Public
 					}
 					$m = __( '<p>Cheating huh</p>', 'avhfdas' );
 					$m .= __( '<p>Protected by: AVH First Defense Against Spam</p>', 'avhfdas' );
+					$php_honeypot = true;
+					if ( $php_honeypot ) {
+						$m .= __( '<p><a href="http://blog.avirtualhome.com/cavernous.php" style="display: none;">openhearth-glove</a></p>', 'avhfdas' );
+					}
 					wp_die( $m );
 				}
 			}
@@ -242,13 +246,14 @@ class AVH_FDAS_Public
 					if ( $spaminfo['detected'] ) {
 						$this->handleSpammer( $ip, $spaminfo );
 					} else {
-						if ( 1 == $options['general']['useipcache'] ) {
-							$ipcachedb->setIP( $ip, 0 );
+						if ( 1 == $options['general']['useipcache'] && (! isset( $spaminfo['Error'] )) ) {
+							$ipcachedb->insertIP( $ip, 0 );
 						}
 					}
 				}
 			} else {
 				if ( $ip_in_cache->spam ) {
+					$ipcachedb->updateIP( $ip );
 					$spaminfo['ip'] = $ip;
 					$this->handleSpammerCache( $spaminfo );
 				}
@@ -427,8 +432,8 @@ class AVH_FDAS_Public
 		$options = $this->core->getOptions();
 
 		// Email
-		$sfs_email = $options['sfs']['whentoemail'] >= 0 && ( int ) $info['sfs']['frequency'] >= $options['sfs']['whentoemail'];
-		$php_email = $options['php']['whentoemail'] >= 0 && $info['php']['type'] >= $options['php']['whentoemailtype'] && $info['php']['score'] >= $options['php']['whentoemail'];
+		$sfs_email = $options['general']['use_sfs'] && ( int ) $options['sfs']['whentoemail'] >= 0 && ( int ) $info['sfs']['frequency'] >= $options['sfs']['whentoemail'];
+		$php_email = $options['general']['use_php'] && ( int ) $options['php']['whentoemail'] >= 0 && $info['php']['type'] >= $options['php']['whentoemailtype'] && ( int ) $info['php']['score'] >= $options['php']['whentoemail'];
 
 		if ( $sfs_email || $php_email ) {
 
@@ -467,7 +472,8 @@ class AVH_FDAS_Public
 					$message .= __( 'Checked at Project Honey Pot', 'avhfdas' ) . "\r\n";
 					$message .= '	' . __( 'Information', 'avhfdas' ) . "\r\n";
 					$message .= '	' . sprintf( __( 'Days since last activity:	%s', 'avhfdas' ), $info['php']['days'] ) . "\r\n";
-					switch ( $info['php']['type'] ) {
+					switch ( $info['php']['type'] )
+					{
 						case "0" :
 							$type = "Search Engine";
 							break;
@@ -528,7 +534,7 @@ class AVH_FDAS_Public
 		if ( 1 == $options['general']['useipcache'] ) {
 			$ipcachedb = & AVH_FDAS_Singleton::getInstance( 'AVH_FDAS_DB' );
 			if ( $sfs_die || $php_die ) {
-				$ipcachedb->setIP( $ip, 1 );
+				$ipcachedb->insertIP( $ip, 1 );
 			}
 		}
 
@@ -547,7 +553,10 @@ class AVH_FDAS_Public
 				} else {
 					$m = sprintf( __( '<h1>Access has been blocked.</h1><p>Your IP [%s] is registered in the Stop Forum Spam or Project Honey Pot database.<BR />If you feel this is incorrect please contact them</p>', 'avhfdas' ), $ip );
 				}
-				$m .= __( '<p>Protected by: AVH First Defense Against Spam</p>', 'avhfdas' );
+				$m .= '<p>Protected by: AVH First Defense Against Spam</p>';
+				if ( $options['php']['usehoneypot'] ) {
+					$m .= '<p>' . $options['php']['honeypoturl'] . '</p>';
+				}
 				wp_die( $m );
 			} else {
 				die();
@@ -595,7 +604,10 @@ class AVH_FDAS_Public
 		$this->core->saveData( $data );
 		if ( 1 == $options['general']['diewithmessage'] ) {
 			$m = sprintf( __( '<h1>Access has been blocked.</h1><p>Your IP [%s] has been identified as spam</p>', 'avhfdas' ), $info['ip'] );
-			$m .= __( '<p>Protected by: AVH First Defense Against Spam</p>', 'avhfdas' );
+			$m .= '<p>Protected by: AVH First Defense Against Spam</p>';
+			if ( $options['php']['usehoneypot'] ) {
+				$m .= '<p>' . $options['php']['honeypoturl'] . '</p>';
+			}
 			wp_die( $m );
 		} else {
 			die();
