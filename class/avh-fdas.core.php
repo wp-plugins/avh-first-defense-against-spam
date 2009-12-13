@@ -76,8 +76,8 @@ class AVH_FDAS_Core
 	 */
 	function __construct ()
 	{
-		$this->version = "2.2";
-		$this->db_version = 6;
+		$this->version = "2.3";
+		$this->db_version = 7;
 		$this->comment = '<!-- AVH First Defense Against Spam version ' . $this->version;
 		$this->db_options_core = 'avhfdas';
 		$this->db_options_data = 'avhfdas_data';
@@ -241,6 +241,10 @@ class AVH_FDAS_Core
 			list ( $options, $data ) = $this->doUpgrade22( $options, $data );
 		}
 
+		if ( $options['general']['dbversion'] < 7 ) {
+			list ( $options, $data ) = $this->doUpgrade23( $options, $data );
+		}
+
 		// Add none existing sections and/or elements to the options
 		foreach ( $this->default_options as $section => $default_options ) {
 			if ( ! array_key_exists( $section, $options ) ) {
@@ -359,6 +363,24 @@ class AVH_FDAS_Core
 
 		$sql = 'UPDATE ' . $wpdb->avhfdasipcache . ' SET `lastseen` = `added`;';
 		$result = $wpdb->query( $sql );
+
+		return array ($new_options, $new_data );
+	}
+
+		/**
+	 * Upgrade to version 2.3
+	 *
+	 * @param $options
+	 * @param $data
+	 */
+	function doUpgrade23 ( $old_options, $old_data )
+	{
+		global $wpdb;
+
+		$new_options = $old_options;
+		$new_data = $old_data;
+
+		$new_option['general']['use_sfs']=0; // Disable Stop Forum Spam until a better option is introduced.
 
 		return array ($new_options, $new_data );
 	}
@@ -532,10 +554,14 @@ class AVH_FDAS_Core
 					if ( 'true' == $xml_array['response_attr']['success'] ) {
 						$return_array = $xml_array['response'];
 					} else {
-						$return_array = array ('Error' => 'Invalid call to stopforumspam' );
+						if ( isset( $xml_array['response']['error'] ) ) {
+							$return_array = array ('Error' => $xml_array['response']['error'] );
+						} else {
+							$return_array = array ('Error' => 'Unsuccesfull response from SFS', 'Debug' => var_export( $response, true ) . "/n" . var_export( $xml_array, true ) );
+						}
 					}
 				} else {
-					$return_array = array ('Error' => 'Unknown response from stopforumspam' );
+					$return_array = array ('Error' => 'Unknown response from stopforumspam', 'Debug' => var_export( $response, true ) . "/n" . var_export( $xml_array, true ) );
 				}
 			} else {
 				$return_array = array ('Error' => $response->errors );
@@ -556,10 +582,10 @@ class AVH_FDAS_Core
 			foreach ( $error as $key => $value ) {
 				$error_short = $key;
 				$error_long = $value[0];
-				$return = 'Error:' . $error_short . ' - ' . $error_long;
+				$return = $error_short . ' - ' . $error_long;
 			}
 		} else {
-			$return = 'Error:' . $error;
+			$return = $error;
 		}
 		return $return;
 	}

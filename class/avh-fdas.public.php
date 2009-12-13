@@ -11,6 +11,7 @@ class AVH_FDAS_Public
 	{
 		// Initialize the plugin
 		$this->core = & AVH_FDAS_Singleton::getInstance( 'AVH_FDAS_Core' );
+
 		// Public actions and filters
 		add_action( 'get_header', array (&$this, 'actionHandleMainAction' ) );
 		add_action( 'comment_form', array (&$this, 'actionAddNonceFieldToComment' ) );
@@ -19,6 +20,8 @@ class AVH_FDAS_Public
 		// Private actions for Cron
 		add_action( 'avhfdas_clean_nonce', array (&$this, 'actionHandleCronCleanNonce' ) );
 		add_action( 'avhfdas_clean_ipcache', array (&$this, 'actionHandleCronCleanIPCache' ) );
+
+		add_filter ('http_headers_useragent', array (&$this, 'filterHttpUserAgent'));
 	}
 
 	/**
@@ -161,9 +164,9 @@ class AVH_FDAS_Public
 					}
 					$m = __( '<p>Cheating huh</p>', 'avhfdas' );
 					$m .= __( '<p>Protected by: AVH First Defense Against Spam</p>', 'avhfdas' );
-					$php_honeypot = true;
-					if ( $php_honeypot ) {
-						$m .= __( '<p><a href="http://blog.avirtualhome.com/cavernous.php" style="display: none;">openhearth-glove</a></p>', 'avhfdas' );
+
+					if ( $this->core->options['php']['usehoneypot'] ) {
+						$m .= '<p>' . $this->core->options['php']['honeypoturl'] . '</p>';
 					}
 					wp_die( $m );
 				}
@@ -173,6 +176,10 @@ class AVH_FDAS_Public
 		return $commentdata;
 	}
 
+	function filterHttpUserAgent($agent){
+		$agent = 'WordPress/AVH; ' . get_bloginfo( 'url' );
+		return $agent;
+	}
 	/**
 	 * Checks if the spammer is in our database.
 	 *
@@ -199,6 +206,9 @@ class AVH_FDAS_Public
 	 */
 	function actionHandleMainAction ()
 	{
+
+		// REMEBER TO UNDO THIS WHEN WE CHANGE TO A DIFFERENT CHECK
+		$options['general']['use_sfs'] = 0;
 
 		$ip = $this->core->getUserIP();
 		$ip_in_whitelist = false;
@@ -291,6 +301,9 @@ class AVH_FDAS_Public
 				$message .= sprintf( __( 'IP:		%s', 'avhfdas' ), $ip ) . "\r\n";
 				$message .= sprintf( __( 'Accessing:	%s', 'avhfdas' ), $_SERVER['REQUEST_URI'] ) . "\r\n";
 				$message .= sprintf( __( 'Call took:	%s', 'avhafdas' ), $time ) . "\r\n";
+				if ( is_set( $spaminfo['Debug'] ) ) {
+					$message .= sprintf( __( 'Debug:	%s', 'avhafdas' ), $spaminfo['Debug'] ) . "\r\n";
+				}
 				$this->mail( $to, $subject, $message );
 			}
 		}
