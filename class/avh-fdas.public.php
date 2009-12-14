@@ -14,6 +14,7 @@ class AVH_FDAS_Public
 
 		// Public actions and filters
 		add_action( 'get_header', array (&$this, 'actionHandleMainAction' ) );
+		add_action('preprocess_comment', array(&$this,'actionHandleSFSAction'),1);
 		add_action( 'comment_form', array (&$this, 'actionAddNonceFieldToComment' ) );
 		add_filter( 'preprocess_comment', array (&$this, 'filterCheckNonceFieldToComment' ), 1 );
 
@@ -21,7 +22,6 @@ class AVH_FDAS_Public
 		add_action( 'avhfdas_clean_nonce', array (&$this, 'actionHandleCronCleanNonce' ) );
 		add_action( 'avhfdas_clean_ipcache', array (&$this, 'actionHandleCronCleanIPCache' ) );
 
-		add_filter ('http_headers_useragent', array (&$this, 'filterHttpUserAgent'));
 	}
 
 	/**
@@ -176,10 +176,6 @@ class AVH_FDAS_Public
 		return $commentdata;
 	}
 
-	function filterHttpUserAgent($agent){
-		$agent = 'WordPress/AVH; ' . get_bloginfo( 'url' );
-		return $agent;
-	}
 	/**
 	 * Checks if the spammer is in our database.
 	 *
@@ -207,9 +203,6 @@ class AVH_FDAS_Public
 	function actionHandleMainAction ()
 	{
 
-		// REMEBER TO UNDO THIS WHEN WE CHANGE TO A DIFFERENT CHECK
-		$options['general']['use_sfs'] = 0;
-
 		$ip = $this->core->getUserIP();
 		$ip_in_whitelist = false;
 		$options = $this->core->getOptions();
@@ -235,16 +228,9 @@ class AVH_FDAS_Public
 			}
 
 			if ( false === $ip_in_cache ) {
-				if ( $options['general']['use_sfs'] || $options['general']['use_php'] ) {
+				if ( $options['general']['use_php'] ) {
 					$spaminfo = null;
 					$spaminfo['detected'] = FALSE;
-
-					if ( $options['general']['use_sfs'] ) {
-						$spaminfo['sfs'] = $this->checkStopForumSpam( $ip );
-						if ( 'yes' == $spaminfo['sfs']['appears'] ) {
-							$spaminfo['detected'] = true;
-						}
-					}
 
 					if ( $options['general']['use_php'] ) {
 						$spaminfo['php'] = $this->checkProjectHoneyPot( $ip );
@@ -270,6 +256,59 @@ class AVH_FDAS_Public
 			}
 		}
 	}
+
+	/**
+	 * Handle the SFS action.
+	 * Only check with SFS when a comment is really posted
+	 * Get the visitors IP and call the stopforumspam API to check if it's a known spammer
+	 *
+	 * @WordPress Action preprocess_comment
+	 */
+	function actionHandleSFSAction ( $commentid )
+	{
+
+		$ip = $this->core->getUserIP();
+
+		$options = $this->core->getOptions();
+		$data = $this->core->getData();
+
+		if ( 1 == $options['general']['useipcache'] ) {
+			$ipcachedb = & AVH_FDAS_Singleton::getInstance( 'AVH_FDAS_DB' );
+			$time_start = microtime( true );
+			$ip_in_cache = $ipcachedb->getIP( $ip );
+			$time_end = microtime( true );
+			$time = $time_end - $time_start;
+			$spaminfo['time'] = $time;
+		}
+
+		if ( $options['general']['use_sfs'] || $options['general']['use_php'] ) {
+			$spaminfo = null;
+			$spaminfo['detected'] = FALSE;
+
+			if ( $options['general']['use_sfs'] ) {
+				$spaminfo['sfs'] = $this->checkStopForumSpam( $ip );
+				if ( 'yes' == $spaminfo['sfs']['appears'] ) {
+					$spaminfo['detected'] = true;
+				}
+			}
+
+			if ( $options['general']['use_php'] ) {
+				$spaminfo['php'] = $this->checkProjectHoneyPot( $ip );
+				if ( $spaminfo['php'] != null ) {
+					$spaminfo['detected'] = true;
+				}
+			}
+
+			if ( $spaminfo['detected'] ) {
+				$this->handleSpammer( $ip, $spaminfo, 'comment' );
+			} else {
+				if ( 1 == $options['general']['useipcache'] && (! isset( $spaminfo['Error'] )) ) {
+					$ipcachedb->insertIP( $ip, 0 );
+				}
+			}
+		}
+	}
+
 
 	/**
 	 * Check an IP with Stop Forum Spam
@@ -439,7 +478,7 @@ class AVH_FDAS_Public
 	 * @param string $time -
 	 *
 	 */
-	function handleSpammer ( $ip, $info )
+	function handleSpammer ( $ip, $info, $whichaction='main' )
 	{
 		$data = $this->core->getData();
 		$options = $this->core->getOptions();
@@ -458,7 +497,7 @@ class AVH_FDAS_Public
 			$message .= sprintf( __( 'Accessing:	%s', 'avhfdas' ), $_SERVER['REQUEST_URI'] ) . "\r\n\r\n";
 
 			// Stop Forum Spam Mail Part
-			if ( $options['general']['use_sfs'] && $sfs_email ) {
+			if ( $options['general']['use_sfs'] && $sfs_email && $whichaction == 'comment') {
 				if ( 'yes' == $info['sfs']['appears'] ) {
 					$message .= __( 'Checked at Stop Forum Spam', 'avhfdas' ) . "\r\n";
 					$message .= '	' . __( 'Information', 'avhfdas' ) . "\r\n";
