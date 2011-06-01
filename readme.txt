@@ -248,3 +248,4 @@ Starting with version 3.0 this plugin is for PHP5 only.
 
 = Glossary =
 * RFC: Request For Change. This indicates a new or improved function requested by one or more users.
+
