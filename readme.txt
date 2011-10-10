@@ -115,7 +115,7 @@ You will have to sign up on their site, [http://www.projecthoneypot.org/create_a
 Starting with version 3.0 this plugin is for PHP5 only.
 
 == Changelog ==
-= Version 3.2.3 =
+= Version 3.2.4 =
 * Bugfix: The nonce function used by WordPress is sometime valid for less than 24 hours causing a problem with adding IP's to the blacklist. 
 
 = Version 3.2.3 =
